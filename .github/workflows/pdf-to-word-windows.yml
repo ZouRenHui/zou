@@ -1,0 +1,40 @@
+name: PDF to Word - Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - "pdf-to-word/**"
+      - ".github/workflows/pdf-to-word-windows.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: pdf-to-word
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Build exe and installer
+        shell: pwsh
+        run: .\build\windows\build.ps1
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PdfToWord-Windows
+          path: |
+            pdf-to-word/dist/PdfToWord/
+            pdf-to-word/installer/output/PdfToWordSetup.exe
+          if-no-files-found: error

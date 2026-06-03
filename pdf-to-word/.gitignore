@@ -1,0 +1,9 @@
+.venv/
+.venv-build/
+__pycache__/
+*.pyc
+*.docx
+dist/
+build/output/
+installer/output/
+*.spec.bak
