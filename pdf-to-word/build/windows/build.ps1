@@ -93,7 +93,13 @@ Write-Host ""
 Write-Host "正在打包 PdfToWord.exe（可能需要几分钟）..."
 Push-Location $ProjectRoot
 try {
-    & (Join-Path $VenvDir "Scripts\pyinstaller.exe") $SpecFile --noconfirm --clean
+    $DistPath = Join-Path $ProjectRoot "dist"
+    $WorkPath = Join-Path $ProjectRoot "build\pyinstaller"
+    & (Join-Path $VenvDir "Scripts\pyinstaller.exe") $SpecFile --noconfirm --clean --distpath $DistPath --workpath $WorkPath
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[错误] PyInstaller 打包失败，退出码: $LASTEXITCODE"
+        exit 1
+    }
 } finally {
     Pop-Location
 }
@@ -138,6 +144,10 @@ $IssFile = Join-Path $ProjectRoot "installer\setup.iss"
 Write-Host ""
 Write-Host "正在编译安装包..."
 & $Iscc $IssFile
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[错误] Inno Setup 编译失败，退出码: $LASTEXITCODE"
+    exit 1
+}
 
 $SetupExe = Join-Path $InstallerOut "PdfToWordSetup.exe"
 Write-Host ""
@@ -150,5 +160,6 @@ if (Test-Path $SetupExe) {
     Write-Host ""
     Write-Host "将 PdfToWordSetup.exe 分发给用户，双击安装后即可从开始菜单或桌面启动。"
 } else {
-    Write-Host "[警告] 安装包路径未找到，请检查 Inno Setup 编译日志。"
+    Write-Host "[错误] 未生成安装包: $SetupExe"
+    exit 1
 }

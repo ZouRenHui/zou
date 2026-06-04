@@ -7,7 +7,7 @@
 #define MyAppExeName "PdfToWord.exe"
 
 [Setup]
-AppId={{A8F3C2E1-9B4D-4F6A-8C2E-PDF2WORD01}
+AppId={{A8F3C2E1-9B4D-4F6A-8C2E-010000000001}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -24,11 +24,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 MinVersion=10.0
-SetupIconFile=
 UninstallDisplayIcon={app}\{#MyAppExeName}
-LicenseFile=
-InfoBeforeFile=
-InfoAfterFile=
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
