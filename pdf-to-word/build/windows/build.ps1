@@ -84,9 +84,9 @@ $VenvPip = Join-Path $VenvDir "Scripts\pip.exe"
 
 Write-Host ""
 Write-Host "安装依赖..."
-& $VenvPip install --upgrade pip -q
-& $VenvPip install -r (Join-Path $ProjectRoot "requirements.txt") -q
-& $VenvPip install -r (Join-Path $BuildDir "requirements-build.txt") -q
+& $VenvPython -m pip install --upgrade pip
+& $VenvPython -m pip install -r (Join-Path $ProjectRoot "requirements.txt")
+& $VenvPython -m pip install -r (Join-Path $BuildDir "requirements-build.txt")
 
 # --- PyInstaller ---
 Write-Host ""

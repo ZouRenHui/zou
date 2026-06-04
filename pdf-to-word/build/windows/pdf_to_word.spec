@@ -20,8 +20,6 @@ a = Analysis(
         "fitz",
         "docx",
         "numpy",
-        "PIL",
-        "PIL.Image",
         "lxml",
         "lxml.etree",
     ],
