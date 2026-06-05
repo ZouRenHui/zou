@@ -12,6 +12,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# GitHub Actions / Windows console defaults to cp1252; keep Python I/O UTF-8 safe.
+$env:PYTHONIOENCODING = "utf-8"
+$env:PYTHONUTF8 = "1"
+
 $BuildDir = $PSScriptRoot
 $ProjectRoot = (Resolve-Path (Join-Path $BuildDir "..\..")).Path
 $DistDir = Join-Path $ProjectRoot "dist\ImageTool"
@@ -110,18 +114,12 @@ Install-PaddlePaddle -Python $VenvPython
 & $VenvPython -m pip install -r (Join-Path $BuildDir "requirements-build.txt")
 
 Write-Host ""
-Write-Host "验证 Python 模块..."
+Write-Host "Verifying Python modules..."
 Push-Location $ProjectRoot
 try {
-    & $VenvPython -c @"
-import image_processing
-import image_utils
-import ocr_engines
-import image_tool_gui
-print('模块导入成功')
-"@
+    & $VenvPython (Join-Path $BuildDir "verify_imports.py")
     if ($LASTEXITCODE -ne 0) {
-        throw "模块导入失败"
+        throw "Module import verification failed."
     }
 } finally {
     Pop-Location
