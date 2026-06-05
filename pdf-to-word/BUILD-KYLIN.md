@@ -18,9 +18,38 @@ cd /Users/zou/Documents/GitHub/zou
 git push   # 推送后自动构建，或 Actions 手动 Run workflow
 ```
 
-打开 **Actions → PDF to Word - Linux/Kylin Build**，完成后在 **Artifacts** 下载：
+### 方式 A：GitHub Releases 直接下载（**推荐，无需解压 zip**）
 
-- **`PdfToWord-Kylin-x86_64.tar.gz`**
+1. 打开仓库 → **Releases**
+2. 找到最新的 `PDF Toolbox Kylin Build`（需先在 Actions 手动 **Run workflow** 触发）
+3. 直接下载 **`PdfToWord-Kylin-x86_64.run`**（不是 zip）
+4. 在麒麟终端执行：
+
+```bash
+chmod +x PdfToWord-Kylin-x86_64.run
+./PdfToWord-Kylin-x86_64.run
+```
+
+`.run` 是自解压脚本，会自动解压到临时目录并启动程序。
+
+### 方式 B：从 Actions Artifacts 下载
+
+GitHub 会把文件包在 **`PdfToWord-Kylin.zip`** 里。若图形界面无法解压，用终端：
+
+```bash
+# 方法1
+sudo apt install unzip
+unzip PdfToWord-Kylin.zip
+
+# 方法2（麒麟通常自带 Python）
+python3 -m zipfile -e PdfToWord-Kylin.zip .
+
+# 方法3
+sudo apt install p7zip-full
+7z x PdfToWord-Kylin.zip
+```
+
+解压后得到 `PdfToWord-Kylin-x86_64.run` 或 `.tar.gz`，优先使用 `.run`。
 
 ### 在麒麟本机构建
 
@@ -35,13 +64,18 @@ chmod +x build/linux/build.sh installer/linux/install-kylin.sh
 ### 用户使用
 
 ```bash
+# 推荐：自解压 .run（一条命令）
+chmod +x PdfToWord-Kylin-x86_64.run
+./PdfToWord-Kylin-x86_64.run
+
+# 备选：tar.gz
 tar -xzf PdfToWord-Kylin-x86_64.tar.gz
 cd PdfToWord
-chmod +x run.sh PdfToWord
+chmod +x run.sh PdfToWord check-kylin.sh
 ./run.sh
 ```
 
-或在文件管理器中进入 `PdfToWord` 文件夹，双击 `run.sh`。
+**注意：** Linux 版主程序名为 `PdfToWord`（无 `.exe`），建议用 `run.sh` 或在终端执行 `./PdfToWord`。
 
 ---
 
@@ -64,13 +98,36 @@ chmod +x installer/linux/install-kylin.sh
 
 ---
 
-## 三、系统兼容性
+## 三、系统兼容性（重要）
 
-| 系统 | 架构 | 说明 |
-|------|------|------|
-| 银河麒麟 V10 / V10 SP1 | x86_64 | CI 构建包可直接尝试 |
-| openKylin | x86_64 | 同上 |
-| 鲲鹏 / 飞腾等 | aarch64 | 需在对应机器上运行 `build/linux/build.sh` 本地构建 |
+**报错「无法执行二进制文件：可执行文件格式错误」= CPU 架构下错了包。**
+
+先在麒麟终端执行：
+
+```bash
+uname -m
+```
+
+| `uname -m` 结果 | 应下载的文件 |
+|-----------------|--------------|
+| `x86_64` | `PdfToWord-Kylin-x86_64.run` |
+| `aarch64` | `PdfToWord-Kylin-aarch64.run`（飞腾、鲲鹏等 ARM 电脑） |
+
+验证程序包架构：
+
+```bash
+file PdfToWord
+# x86 电脑应显示 x86-64；ARM 电脑应显示 aarch64
+```
+
+### ARM 电脑无法用预编译包时（源码安装）
+
+```bash
+# 将完整 pdf-to-word 项目文件夹拷到麒麟
+chmod +x installer/linux/install-kylin.sh
+./installer/linux/install-kylin.sh
+# 然后从应用菜单打开「PDF 工具箱」，或执行 pdf-to-word
+```
 
 > GitHub Actions 默认构建 **x86_64**。ARM 版麒麟请在 ARM 机器上执行 `build.sh`。
 
