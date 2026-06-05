@@ -6,4 +6,6 @@ __pycache__/
 dist/
 build/output/
 installer/output/
+*.zip
+*.tar.gz
 *.spec.bak

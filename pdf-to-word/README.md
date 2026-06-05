@@ -42,13 +42,24 @@ python pdf_to_word.py ./pdfs/ -o ./output/
 python pdf_to_word.py ./pdfs/ -o ./output/ -r
 ```
 
+## 麒麟 / Linux 版本
+
+请参阅 **[BUILD-KYLIN.md](BUILD-KYLIN.md)**：
+
+- **`PdfToWord-Kylin-x86_64.tar.gz`** — 免安装版，解压后执行 `./run.sh`
+- **`install-kylin.sh`** — 脚本安装版，自动检测并安装 Python 依赖
+
+在 Mac 上可通过 GitHub Actions **「PDF to Word - Linux/Kylin Build」** 自动构建。
+
 ## Windows 安装包
 
 需要分发给 Windows 用户时，请参阅 **[BUILD-WINDOWS.md](BUILD-WINDOWS.md)**：
 
-- 在 Windows 上运行 `build\windows\build.ps1` 生成 **`PdfToWordSetup.exe`**
-- 用户安装后得到 **`PdfToWord.exe`**，双击即可打开图形界面（无需安装 Python）
-- 安装过程会自动检测环境并安装 VC++ 运行库等依赖
+- 在 Windows 上运行 `build\windows\build.ps1` 生成：
+  - **`PdfToWord-Portable.zip`** — 免安装版，解压即用
+  - **`PdfToWordSetup.exe`** — 安装程序版
+- 双击 **`PdfToWord.exe`** 即可打开图形界面（无需安装 Python）
+- 安装程序版会自动检测环境并安装 VC++ 运行库等依赖
 
 ## 说明
 
