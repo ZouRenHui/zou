@@ -37,6 +37,26 @@ Then choose ONE of:
      ./run.sh
 
 
+ONE-CLICK INSTALL (recommended for Kylin GUI)
+---------------------------------------------
+  Put these files in the SAME folder:
+    - PdfToWord-Kylin-aarch64.tar.gz  (or x86_64)
+    - setup-kylin.sh
+    - setup-kylin.desktop  (optional)
+
+  Double-click setup-kylin.sh (or setup-kylin.desktop)
+  Choose "Run" / "Execute" when prompted.
+
+  The script will extract, create shortcuts, and offer to launch the app.
+
+DESKTOP SHORTCUT (manual)
+-------------------------
+  cd PdfToWord
+  chmod +x install-shortcut.sh run.sh
+  ./install-shortcut.sh
+
+Then open from application menu or double-click desktop icon "PDF 工具箱".
+
 MANUAL RUN (after extracting tar.gz)
 ------------------------------------
   cd PdfToWord

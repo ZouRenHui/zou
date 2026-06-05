@@ -30,7 +30,7 @@ chmod +x PdfToWord-Kylin-x86_64.run
 ./PdfToWord-Kylin-x86_64.run
 ```
 
-`.run` 是自解压脚本，会自动解压到临时目录并启动程序。
+`.run` 是自解压脚本，会安装到 `~/.local/share/PdfToWord`，自动创建桌面快捷方式并启动程序。
 
 ### 方式 B：从 Actions Artifacts 下载
 
@@ -76,6 +76,30 @@ chmod +x run.sh PdfToWord check-kylin.sh
 ```
 
 **注意：** Linux 版主程序名为 `PdfToWord`（无 `.exe`），建议用 `run.sh` 或在终端执行 `./PdfToWord`。
+
+### 图形界面一键安装（推荐，方式二）
+
+将以下文件放在**同一文件夹**（如「下载」）：
+
+- `PdfToWord-Kylin-aarch64.tar.gz`（ARM 麒麟）
+- `setup-kylin.sh`
+- `setup-kylin.desktop`（可选，双击图标安装）
+
+**双击 `setup-kylin.sh`**，在弹出框中选择 **「运行」** 或 **「在终端中运行」**。
+
+脚本会自动：解压 → 安装到 `~/.local/share/PdfToWord` → 创建桌面快捷方式 → 询问是否启动。
+
+> 若双击无反应：右键 → 属性 → 权限 → 勾选「允许作为程序执行」，或终端执行 `chmod +x setup-kylin.sh && ./setup-kylin.sh`
+
+### 手动创建桌面快捷方式
+
+解压得到 `PdfToWord` 文件夹后：
+
+```bash
+cd PdfToWord
+chmod +x install-shortcut.sh
+./install-shortcut.sh
+```
 
 ---
 

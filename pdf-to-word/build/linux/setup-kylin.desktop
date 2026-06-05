@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=安装 PDF 工具箱
+Name[zh_CN]=安装 PDF 工具箱
+Comment=双击解压 tar.gz 并创建桌面快捷方式
+Comment[zh_CN]=双击解压 tar.gz 并创建桌面快捷方式
+Exec=sh -c "cd \"$(dirname \"$(readlink -f '%k' 2>/dev/null || echo '%k')\")\" && chmod +x setup-kylin.sh && ./setup-kylin.sh"
+Icon=system-software-install
+Terminal=false
+Categories=Utility;
+StartupNotify=true

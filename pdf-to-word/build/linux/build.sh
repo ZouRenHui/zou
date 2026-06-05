@@ -13,6 +13,9 @@ DOWNLOAD_README_SRC="$BUILD_DIR/KYLIN-DOWNLOAD-README.txt"
 RUN_SCRIPT_SRC="$BUILD_DIR/run.sh"
 CHECK_SCRIPT_SRC="$BUILD_DIR/check-kylin.sh"
 ARCH_CHECK_SRC="$BUILD_DIR/arch-check.sh"
+SHORTCUT_SCRIPT_SRC="$BUILD_DIR/install-shortcut.sh"
+SETUP_SCRIPT_SRC="$BUILD_DIR/setup-kylin.sh"
+SETUP_DESKTOP_SRC="$BUILD_DIR/setup-kylin.desktop"
 
 ARCH="$(uname -m)"
 PORTABLE_TAR="PdfToWord-Kylin-${ARCH}.tar.gz"
@@ -33,13 +36,16 @@ if [ -z "$ARCHIVE_LINE" ]; then
     echo "[ERROR] Invalid installer format."
     exit 1
 fi
-TMP=$(mktemp -d)
-cleanup() { rm -rf "$TMP"; }
-trap cleanup EXIT
-echo "Extracting PDF Toolbox..."
-tail -n "+${ARCHIVE_LINE}" "$0" | tar -xzf - -C "$TMP"
-cd "$TMP/PdfToWord"
-chmod +x run.sh PdfToWord check-kylin.sh 2>/dev/null || true
+INSTALL_BASE="${PDF_TOOLBOX_HOME:-$HOME/.local/share}"
+INSTALL_DIR="$INSTALL_BASE/PdfToWord"
+mkdir -p "$INSTALL_BASE"
+echo "Installing PDF Toolbox to: $INSTALL_DIR"
+tail -n "+${ARCHIVE_LINE}" "$0" | tar -xzf - -C "$INSTALL_BASE"
+cd "$INSTALL_DIR"
+chmod +x run.sh PdfToWord check-kylin.sh install-shortcut.sh 2>/dev/null || true
+if [ -x "./install-shortcut.sh" ]; then
+    ./install-shortcut.sh || true
+fi
 exec ./run.sh "$@"
 exit 0
 __ARCHIVE_BELOW__
@@ -121,6 +127,10 @@ if [ -f "$ARCH_CHECK_SRC" ]; then
     cp "$ARCH_CHECK_SRC" "$DIST_DIR/arch-check.sh"
     chmod +x "$DIST_DIR/arch-check.sh"
 fi
+if [ -f "$SHORTCUT_SCRIPT_SRC" ]; then
+    cp "$SHORTCUT_SCRIPT_SRC" "$DIST_DIR/install-shortcut.sh"
+    chmod +x "$DIST_DIR/install-shortcut.sh"
+fi
 
 rm -f "$PORTABLE_TAR_PATH" "$PORTABLE_RUN_PATH"
 tar -czf "$PORTABLE_TAR_PATH" -C "$PROJECT_ROOT/dist" PdfToWord
@@ -131,6 +141,14 @@ echo "[OK] 自解压: $PORTABLE_RUN_PATH"
 
 if [ -f "$DOWNLOAD_README_SRC" ]; then
     cp "$DOWNLOAD_README_SRC" "$OUTPUT_DIR/KYLIN-DOWNLOAD-README.txt"
+fi
+if [ -f "$SETUP_SCRIPT_SRC" ]; then
+    cp "$SETUP_SCRIPT_SRC" "$OUTPUT_DIR/setup-kylin.sh"
+    chmod +x "$OUTPUT_DIR/setup-kylin.sh"
+fi
+if [ -f "$SETUP_DESKTOP_SRC" ]; then
+    cp "$SETUP_DESKTOP_SRC" "$OUTPUT_DIR/setup-kylin.desktop"
+    chmod +x "$OUTPUT_DIR/setup-kylin.desktop"
 fi
 
 echo ""
