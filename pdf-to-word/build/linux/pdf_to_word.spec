@@ -14,6 +14,7 @@ a = Analysis(
     datas=[],
     hiddenimports=[
         "pdf_to_word",
+        "pdf_tools",
         "pdf2docx",
         "pdf2docx.converter",
         "fitz",

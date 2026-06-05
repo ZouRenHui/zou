@@ -7,7 +7,8 @@
   1. 检测本机 Python
   2. 安装项目依赖与 PyInstaller
   3. 打包 GUI 为 dist\PdfToWord\PdfToWord.exe
-  4. 使用 Inno Setup 生成 installer\output\PdfToWordSetup.exe
+  4. 生成免安装 zip：installer\output\PdfToWord-Portable.zip
+  5. 使用 Inno Setup 生成 installer\output\PdfToWordSetup.exe
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\build\windows\build.ps1
@@ -24,6 +25,34 @@ $ProjectRoot = (Resolve-Path (Join-Path $BuildDir "..\..")).Path
 $DistDir = Join-Path $ProjectRoot "dist\PdfToWord"
 $InstallerOut = Join-Path $ProjectRoot "installer\output"
 $SpecFile = Join-Path $BuildDir "pdf_to_word.spec"
+$PortableZip = Join-Path $InstallerOut "PdfToWord-Portable.zip"
+$PortableReadme = Join-Path $BuildDir "PORTABLE-README.txt"
+
+function New-PortablePackage {
+    param(
+        [string]$SourceDir,
+        [string]$ZipPath,
+        [string]$ReadmeSource
+    )
+
+    if (-not (Test-Path $SourceDir)) {
+        throw "未找到程序目录: $SourceDir"
+    }
+
+    $outDir = Split-Path $ZipPath -Parent
+    New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+    if (Test-Path $ReadmeSource) {
+        Copy-Item $ReadmeSource (Join-Path $SourceDir "使用说明.txt") -Force
+    }
+
+    if (Test-Path $ZipPath) {
+        Remove-Item $ZipPath -Force
+    }
+
+    Compress-Archive -Path $SourceDir -DestinationPath $ZipPath -CompressionLevel Optimal -Force
+    return $ZipPath
+}
 
 Write-Host "========================================"
 Write-Host " PDF 转 Word — Windows 构建"
@@ -111,10 +140,16 @@ if (-not (Test-Path $MainExe)) {
 }
 Write-Host "[OK] 已生成: $MainExe"
 
+Write-Host ""
+Write-Host "正在打包免安装版..."
+New-PortablePackage -SourceDir $DistDir -ZipPath $PortableZip -ReadmeSource $PortableReadme | Out-Null
+Write-Host "[OK] 免安装包: $PortableZip"
+
 if ($SkipInstaller) {
     Write-Host ""
-    Write-Host "已跳过安装包构建（-SkipInstaller）。"
+    Write-Host "已跳过安装程序构建（-SkipInstaller）。"
     Write-Host "可直接运行: $MainExe"
+    Write-Host "或分发免安装包: $PortableZip"
     exit 0
 }
 
@@ -155,10 +190,12 @@ if (Test-Path $SetupExe) {
     Write-Host "========================================"
     Write-Host " 构建完成"
     Write-Host "========================================"
-    Write-Host "程序:     $MainExe"
-    Write-Host "安装包:   $SetupExe"
+    Write-Host "程序:       $MainExe"
+    Write-Host "免安装包:   $PortableZip"
+    Write-Host "安装程序:   $SetupExe"
     Write-Host ""
-    Write-Host "将 PdfToWordSetup.exe 分发给用户，双击安装后即可从开始菜单或桌面启动。"
+    Write-Host "免安装版：解压 PdfToWord-Portable.zip 后双击 PdfToWord.exe"
+    Write-Host "安装版：  运行 PdfToWordSetup.exe 安装到系统"
 } else {
     Write-Host "[错误] 未生成安装包: $SetupExe"
     exit 1

@@ -12,7 +12,7 @@ LAUNCHER="$BIN_DIR/pdf-to-word"
 DESKTOP_FILE="$DESKTOP_DIR/pdf-to-word.desktop"
 
 echo "========================================"
-echo " PDF 转 Word — 麒麟 / Linux 安装"
+echo " PDF 工具箱 — 麒麟 / Linux 安装"
 echo "========================================"
 
 install_apt_deps() {
@@ -86,8 +86,8 @@ chmod +x "$LAUNCHER"
 
 cat > "$DESKTOP_FILE" <<EOF
 [Desktop Entry]
-Name=PDF 转 Word
-Comment=将 PDF 转换为 Word 文档
+Name=PDF 工具箱
+Comment=PDF 转 Word、拼接、拆分
 Exec=$LAUNCHER
 Icon=application-pdf
 Terminal=false
@@ -101,6 +101,6 @@ echo "========================================"
 echo " 安装完成"
 echo "========================================"
 echo "命令行启动: pdf-to-word"
-echo "桌面入口:   应用菜单中搜索「PDF 转 Word」"
+echo "桌面入口:   应用菜单中搜索「PDF 工具箱」"
 echo ""
 echo "若菜单未显示，可执行: update-desktop-database ~/.local/share/applications 2>/dev/null || true"

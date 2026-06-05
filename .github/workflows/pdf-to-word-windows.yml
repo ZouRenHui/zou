@@ -37,6 +37,6 @@ jobs:
         with:
           name: PdfToWord-Windows
           path: |
-            pdf-to-word/dist/PdfToWord/
+            pdf-to-word/installer/output/PdfToWord-Portable.zip
             pdf-to-word/installer/output/PdfToWordSetup.exe
           if-no-files-found: error

@@ -1,8 +1,8 @@
 ; Inno Setup 安装脚本 — 生成 PdfToWordSetup.exe
 ; 需先在 Windows 上执行 build\windows\build.ps1 生成 dist\PdfToWord\
 
-#define MyAppName "PDF 转 Word"
-#define MyAppVersion "1.0.0"
+#define MyAppName "PDF 工具箱"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "PdfToWord"
 #define MyAppExeName "PdfToWord.exe"
 

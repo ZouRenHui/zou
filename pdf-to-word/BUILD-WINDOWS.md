@@ -1,11 +1,12 @@
-# Windows 安装包构建说明
+# Windows 安装包构建说明（PDF 工具箱 v1.1）
 
 最终交付物：
 
 | 文件 | 说明 |
 |------|------|
-| `installer/output/PdfToWordSetup.exe` | **安装程序**（分发给用户） |
-| `dist/PdfToWord/PdfToWord.exe` | 安装后的主程序（也可直接运行测试） |
+| `installer/output/PdfToWord-Portable.zip` | **免安装版**（解压即用） |
+| `installer/output/PdfToWordSetup.exe` | **安装程序**（写入系统、创建快捷方式） |
+| `dist/PdfToWord/PdfToWord.exe` | 程序本体（构建中间产物，也可直接运行测试） |
 
 用户安装 **PdfToWordSetup.exe** 后：
 
@@ -45,9 +46,10 @@ powershell -ExecutionPolicy Bypass -File .\build\windows\build.ps1
 - 检测 / 尝试用 winget 安装 Python（构建机缺失时）
 - 创建 `.venv-build` 并安装依赖
 - 用 PyInstaller 打包 `PdfToWord.exe`
+- 生成免安装包 `installer\output\PdfToWord-Portable.zip`
 - 用 Inno Setup 生成 `installer\output\PdfToWordSetup.exe`
 
-仅打包 exe、不制作安装包：
+仅打包 exe 与免安装 zip、不制作安装程序：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build\windows\build.ps1 -SkipInstaller
@@ -55,7 +57,20 @@ powershell -ExecutionPolicy Bypass -File .\build\windows\build.ps1 -SkipInstalle
 
 ### 3. 分发给用户
 
-将 `installer\output\PdfToWordSetup.exe` 复制到 U 盘或发给用户双击安装即可。
+| 分发方式 | 文件 | 用户操作 |
+|----------|------|----------|
+| 免安装 | `PdfToWord-Portable.zip` | 解压 → 进入 `PdfToWord` 文件夹 → 双击 `PdfToWord.exe` |
+| 安装版 | `PdfToWordSetup.exe` | 双击安装 → 从开始菜单启动 |
+
+---
+
+## 免安装版说明
+
+- 解压后**无需安装**，可放 U 盘、网盘或任意目录运行
+- 文件夹内所有文件需保持在一起，不要只拷贝 `PdfToWord.exe`
+- 不会在「添加或删除程序」中留下记录，删除文件夹即卸载
+- 若电脑缺少 VC++ 运行库，需手动安装：  
+  https://aka.ms/vs/17/release/vc_redist.x64.exe
 
 ---
 
@@ -69,7 +84,7 @@ powershell -ExecutionPolicy Bypass -File .\build\windows\build.ps1 -SkipInstalle
 2. 打开仓库 → **Actions** → 选择 **「PDF to Word - Windows Installer」**。
 3. 点击 **Run workflow** → **Run workflow**（手动触发）。
 4. 等待约 5–15 分钟，进入该次运行 → 底部 **Artifacts** → 下载 **PdfToWord-Windows**。
-5. 解压后得到 **`PdfToWordSetup.exe`**（安装包）和 **`PdfToWord.exe`**（程序目录）。
+5. 解压后得到 **`PdfToWord-Portable.zip`**（免安装版）和 **`PdfToWordSetup.exe`**（安装程序）。
 
 推送 `pdf-to-word/**` 到 `main` / `master` 时也会自动触发构建。
 
