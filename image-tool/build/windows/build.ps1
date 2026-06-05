@@ -115,6 +115,7 @@ Install-PaddlePaddle -Python $VenvPython
 
 Write-Host ""
 Write-Host "Verifying Python modules..."
+$env:PYTHONPATH = $ProjectRoot
 Push-Location $ProjectRoot
 try {
     & $VenvPython (Join-Path $BuildDir "verify_imports.py")
