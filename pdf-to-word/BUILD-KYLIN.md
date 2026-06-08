@@ -18,19 +18,23 @@ cd /Users/zou/Documents/GitHub/zou
 git push   # 推送后自动构建，或 Actions 手动 Run workflow
 ```
 
-### 方式 A：GitHub Releases 直接下载（**推荐，无需解压 zip**）
+### 方式 A：一键安装（推荐，只需 1 个文件）
 
-1. 打开仓库 → **Releases**
-2. 找到最新的 `PDF Toolbox Kylin Build`（需先在 Actions 手动 **Run workflow** 触发）
-3. 直接下载 **`PdfToWord-Kylin-x86_64.run`**（不是 zip）
-4. 在麒麟终端执行：
+1. 从 **Releases** 或 **Artifacts** 下载 **`PdfToWord-Kylin-aarch64.run`**
+2. 右键 → 属性 → 权限 → 勾选 **「允许作为程序执行」**
+3. **双击** `PdfToWord-Kylin-aarch64.run`
+4. 等待安装完成（首次需联网安装 Python 依赖，约 1–3 分钟）
+5. 自动创建桌面快捷方式并启动 **「PDF 工具箱」**
+
+> 新版在麒麟上会自动使用 **Python 模式** 安装，避免 libexpat.so 安全拦截。  
+> 也可双击 **`一键安装-PDF工具箱.desktop`**（与 .run 放在同一文件夹）。
+
+终端等价命令：
 
 ```bash
-chmod +x PdfToWord-Kylin-x86_64.run
-./PdfToWord-Kylin-x86_64.run
+chmod +x PdfToWord-Kylin-aarch64.run
+./PdfToWord-Kylin-aarch64.run
 ```
-
-`.run` 是自解压脚本，会安装到 `~/.local/share/PdfToWord`，自动创建桌面快捷方式并启动程序。
 
 ### 方式 B：从 Actions Artifacts 下载
 

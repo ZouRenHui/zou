@@ -47,6 +47,7 @@ jobs:
             pdf-to-word/installer/output/PdfToWord-Kylin-*
             pdf-to-word/installer/output/setup-kylin.sh
             pdf-to-word/installer/output/setup-kylin.desktop
+            pdf-to-word/installer/output/一键安装-PDF工具箱.desktop
             pdf-to-word/installer/output/KYLIN-DOWNLOAD-README.txt
           if-no-files-found: error
 
@@ -81,12 +82,13 @@ jobs:
             | `x86_64` (Intel/AMD) | `PdfToWord-Kylin-x86_64.run` |
             | `aarch64` (飞腾/鲲鹏等 ARM) | `PdfToWord-Kylin-aarch64.run` |
 
-            ```bash
-            chmod +x PdfToWord-Kylin-*.run
-            ./PdfToWord-Kylin-aarch64.run   # ARM example
-            ```
+            **One-click install (Kylin aarch64):**
 
-            ARM machines cannot run the x86_64 build (error: 可执行文件格式错误).
+            1. Download `PdfToWord-Kylin-aarch64.run`
+            2. chmod +x PdfToWord-Kylin-aarch64.run
+            3. Double-click to install (creates desktop shortcut automatically)
+
+            Or double-click `一键安装-PDF工具箱.desktop` in the same folder.
           files: release-files/*
           draft: false
           prerelease: true

@@ -20,23 +20,34 @@ fi
 # shellcheck disable=SC1091
 source "$APP_DIR/kylin-detect.sh" 2>/dev/null || true
 
+gui_info() {
+    if command -v zenity >/dev/null 2>&1; then
+        zenity --info --title="$APP_NAME" --text="$1" --width=460 2>/dev/null || echo "$1"
+    else
+        echo "$1"
+    fi
+}
+
+gui_error() {
+    if command -v zenity >/dev/null 2>&1; then
+        zenity --error --title="$APP_NAME" --text="$1" --width=460 2>/dev/null || echo "[错误] $1" >&2
+    else
+        echo "[错误] $1" >&2
+    fi
+}
+
 if [ ! -d "$SOURCE_DIR" ]; then
-    echo "[错误] 未找到 app_source 源码目录: $SOURCE_DIR"
+    gui_error "未找到 app_source 源码目录。\n请使用最新版 PdfToWord-Kylin-aarch64.run 安装包。"
     exit 1
 fi
 
-install_deps() {
-    echo "正在安装系统依赖（需要联网）..."
-    if command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get update
-        sudo apt-get install -y python3 python3-pip python3-venv python3-tk libreoffice 2>/dev/null || \
-        sudo apt-get install -y python3 python3-pip python3-venv python3-tk
-    elif command -v dnf >/dev/null 2>&1; then
-        sudo dnf install -y python3 python3-pip python3-tkinter libreoffice 2>/dev/null || \
-        sudo dnf install -y python3 python3-pip python3-tkinter
-    elif command -v yum >/dev/null 2>&1; then
-        sudo yum install -y python3 python3-pip python3-tkinter
-    fi
+check_tkinter() {
+    python3 -c "import tkinter" 2>/dev/null
+}
+
+install_deps_hint() {
+    gui_error "缺少 python3-tk，图形界面无法启动。\n\n请在终端执行：\n  sudo apt install python3 python3-pip python3-venv python3-tk\n\n安装完成后重新双击安装包。"
+    exit 1
 }
 
 setup_app() {
@@ -51,8 +62,17 @@ setup_app() {
 
     # shellcheck disable=SC1091
     source "$VENV_DIR/bin/activate"
-    python -m pip install --upgrade pip
-    python -m pip install -r "$INSTALL_ROOT/app/requirements.txt"
+    python -m pip install --upgrade pip -q
+    if command -v zenity >/dev/null 2>&1; then
+        (
+            echo "10"; echo "# 正在安装依赖..."
+            python -m pip install -r "$INSTALL_ROOT/app/requirements.txt" -q
+            echo "100"; echo "# 完成"
+        ) | zenity --progress --title="$APP_NAME" --text="正在配置运行环境，请稍候..." --percentage=0 --auto-close 2>/dev/null \
+            || python -m pip install -r "$INSTALL_ROOT/app/requirements.txt" -q
+    else
+        python -m pip install -r "$INSTALL_ROOT/app/requirements.txt" -q
+    fi
 
     cat > "$LAUNCHER" <<EOF
 #!/usr/bin/env bash
@@ -71,7 +91,7 @@ Version=1.0
 Type=Application
 Name=${APP_NAME}
 Name[zh_CN]=${APP_NAME}
-Comment=PDF 转 Word、拼接、拆分（Python 模式，适配麒麟安全）
+Comment=PDF 转 Word、拼接、拆分
 Comment[zh_CN]=PDF 转 Word、拼接、拆分
 Exec=${LAUNCHER}
 Path=${INSTALL_ROOT}
@@ -79,7 +99,6 @@ Icon=application-pdf
 Terminal=false
 Categories=Office;Utility;
 StartupNotify=true
-X-Kylin-PDF-Toolbox-Mode=python
 "
 
     MENU_FILE="${MENU_DIR}/${APP_ID}.desktop"
@@ -102,29 +121,25 @@ X-Kylin-PDF-Toolbox-Mode=python
 }
 
 if ! $SHORTCUT_ONLY; then
-    if ! python3 -c "import tkinter" 2>/dev/null; then
-        install_deps
-    fi
-    if ! python3 -c "import tkinter" 2>/dev/null; then
-        echo "[错误] tkinter 不可用，请安装: sudo apt install python3-tk"
-        exit 1
+    if ! check_tkinter; then
+        install_deps_hint
     fi
     setup_app
 fi
 
 if [ ! -x "$LAUNCHER" ]; then
-    echo "[错误] 未找到 $LAUNCHER，请先完整运行 install-kylin-python.sh"
+    gui_error "安装未完成：未找到 $LAUNCHER"
     exit 1
 fi
 
 create_shortcuts
 
-echo ""
-echo "========================================"
-echo " 麒麟 Python 模式安装完成"
-echo "========================================"
-echo "说明: 桌面快捷方式已改为系统 Python 启动，"
-echo "      可避免 libexpat.so 未认证拦截问题。"
-echo ""
-echo "启动: $LAUNCHER"
-echo "或在应用菜单搜索「${APP_NAME}」"
+if [ -t 1 ]; then
+    echo ""
+    echo "========================================"
+    echo " 麒麟 Python 模式安装完成"
+    echo "========================================"
+    echo "启动: $LAUNCHER"
+else
+    gui_info "安装成功！\n\n已从桌面或应用菜单打开「${APP_NAME}」。\n\n（Python 模式，无 libexpat 安全拦截）"
+fi

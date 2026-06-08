@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=一键安装 PDF 工具箱
+Name[zh_CN]=一键安装 PDF 工具箱
+Comment=双击安装 PDF 工具箱（麒麟 ARM）
+Comment[zh_CN]=双击安装 PDF 工具箱
+Exec=sh -c "cd \"$(dirname \"$(readlink -f '%k' 2>/dev/null || echo '%k')\")\" && RUN=$(ls PdfToWord-Kylin-aarch64.run PdfToWord-Kylin-*.run 2>/dev/null | head -1) && chmod +x \"$RUN\" && ./\"$RUN\""
+Icon=system-software-install
+Terminal=false
+Categories=Utility;
+StartupNotify=true

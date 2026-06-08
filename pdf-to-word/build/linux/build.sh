@@ -32,33 +32,42 @@ create_self_extractor() {
     cat > "$archive_path" << 'EOF'
 #!/bin/bash
 set -euo pipefail
+
+APP_NAME="PDF 工具箱"
+gui_info() {
+    command -v zenity >/dev/null 2>&1 && zenity --info --title="$APP_NAME" --text="$1" --width=460 2>/dev/null || echo "$1"
+}
+gui_error() {
+    command -v zenity >/dev/null 2>&1 && zenity --error --title="$APP_NAME" --text="$1" --width=460 2>/dev/null || echo "[错误] $1" >&2
+}
+
 MARKER="__ARCHIVE_BELOW__"
 ARCHIVE_LINE=$(awk "/^${MARKER}\$/ { print NR + 1; exit }" "$0")
 if [ -z "$ARCHIVE_LINE" ]; then
-    echo "[ERROR] Invalid installer format."
+    gui_error "安装包格式错误。"
     exit 1
 fi
 INSTALL_BASE="${PDF_TOOLBOX_HOME:-$HOME/.local/share}"
 INSTALL_DIR="$INSTALL_BASE/PdfToWord"
 mkdir -p "$INSTALL_BASE"
-echo "Installing PDF Toolbox to: $INSTALL_DIR"
 tail -n "+${ARCHIVE_LINE}" "$0" | tar -xzf - -C "$INSTALL_BASE"
 cd "$INSTALL_DIR"
-chmod +x run.sh PdfToWord check-kylin.sh install-shortcut.sh install-kylin-python.sh 2>/dev/null || true
-if [ -f "./install-kylin-python.sh" ] && [ -d "./app_source" ] && [ -f "./kylin-detect.sh" ]; then
+chmod +x run.sh install-shortcut.sh install-kylin-python.sh kylin-detect.sh 2>/dev/null || true
+
+# 麒麟：一键安装 Python 模式（推荐，避免 libexpat 安全拦截）
+if [ -f "./kylin-detect.sh" ]; then
     # shellcheck disable=SC1091
     source "./kylin-detect.sh"
-    if is_kylin; then
-        ./install-kylin-python.sh || true
+    if is_kylin && [ -f "./install-kylin-python.sh" ] && [ -d "./app_source" ]; then
+        ./install-kylin-python.sh
+        exec "$HOME/.local/share/pdf-to-word/run-python.sh"
     fi
 fi
-if [ -x "./install-shortcut.sh" ]; then
-    ./install-shortcut.sh || true
-fi
-if [ -x "$HOME/.local/share/pdf-to-word/run-python.sh" ]; then
-    exec "$HOME/.local/share/pdf-to-word/run-python.sh" "$@"
-fi
-exec ./run.sh "$@"
+
+# 非麒麟系统
+chmod +x PdfToWord check-kylin.sh 2>/dev/null || true
+./install-shortcut.sh
+exec ./run.sh
 exit 0
 __ARCHIVE_BELOW__
 EOF
@@ -176,6 +185,11 @@ fi
 if [ -f "$SETUP_DESKTOP_SRC" ]; then
     cp "$SETUP_DESKTOP_SRC" "$OUTPUT_DIR/setup-kylin.desktop"
     chmod +x "$OUTPUT_DIR/setup-kylin.desktop"
+fi
+INSTALL_DESKTOP_SRC="$BUILD_DIR/install-aarch64.desktop"
+if [ -f "$INSTALL_DESKTOP_SRC" ] && [ "$ARCH" = "aarch64" ]; then
+    cp "$INSTALL_DESKTOP_SRC" "$OUTPUT_DIR/一键安装-PDF工具箱.desktop"
+    chmod +x "$OUTPUT_DIR/一键安装-PDF工具箱.desktop"
 fi
 
 echo ""
