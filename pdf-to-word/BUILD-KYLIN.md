@@ -203,8 +203,54 @@ sudo apt install libgl1
 sudo dnf install mesa-libGL
 ```
 
-**Q: 中文界面乱码？**  
-确认系统已安装中文字体（麒麟桌面通常已自带）。
+**Q: 如何卸载旧版？**  
+见下方「卸载旧版」章节，或运行 `uninstall-kylin.sh`。
 
-**Q: 与 Windows 版区别？**  
-功能相同；Linux 免安装包为 `.tar.gz`，启动文件为 `PdfToWord`（无 `.exe`）。
+---
+
+## 五、卸载旧版
+
+旧版可能安装在以下位置（删文件夹即可，无系统注册表）：
+
+| 路径 | 说明 |
+|------|------|
+| `~/.local/share/PdfToWord` | `.run` / 免安装版（PyInstaller） |
+| `~/.local/share/pdf-to-word` | Python 模式 / `install-kylin.sh` |
+| `~/.local/bin/pdf-to-word` | 命令行启动脚本 |
+| `~/.local/share/applications/pdf-toolbox.desktop` | 应用菜单快捷方式 |
+| `~/.local/share/applications/pdf-to-word.desktop` | 应用菜单快捷方式 |
+| `~/桌面/pdf-toolbox.desktop` | 桌面快捷方式 |
+
+### 方法一：一键卸载脚本
+
+```bash
+chmod +x uninstall-kylin.sh
+./uninstall-kylin.sh
+```
+
+（新版安装包 `Artifacts` 里会附带此脚本。）
+
+### 方法二：手动删除
+
+在麒麟终端执行：
+
+```bash
+rm -rf ~/.local/share/PdfToWord
+rm -rf ~/.local/share/pdf-to-word
+rm -f ~/.local/bin/pdf-to-word
+rm -f ~/.local/share/applications/pdf-toolbox.desktop
+rm -f ~/.local/share/applications/pdf-to-word.desktop
+rm -f ~/桌面/pdf-toolbox.desktop ~/桌面/pdf-to-word.desktop
+rm -f ~/Desktop/pdf-toolbox.desktop ~/Desktop/pdf-to-word.desktop
+```
+
+然后安装新版：
+
+```bash
+chmod +x PdfToWord-Kylin-aarch64.run
+./PdfToWord-Kylin-aarch64.run
+```
+
+---
+
+## 六、其他常见问题

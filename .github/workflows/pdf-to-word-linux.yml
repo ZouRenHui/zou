@@ -47,6 +47,7 @@ jobs:
             pdf-to-word/installer/output/PdfToWord-Kylin-*
             pdf-to-word/installer/output/setup-kylin.sh
             pdf-to-word/installer/output/setup-kylin.desktop
+            pdf-to-word/installer/output/uninstall-kylin.sh
             pdf-to-word/installer/output/一键安装-PDF工具箱.desktop
             pdf-to-word/installer/output/KYLIN-DOWNLOAD-README.txt
           if-no-files-found: error

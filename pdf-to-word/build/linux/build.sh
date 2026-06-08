@@ -16,6 +16,7 @@ ARCH_CHECK_SRC="$BUILD_DIR/arch-check.sh"
 SHORTCUT_SCRIPT_SRC="$BUILD_DIR/install-shortcut.sh"
 KYLIN_DETECT_SRC="$BUILD_DIR/kylin-detect.sh"
 KYLIN_PYTHON_SRC="$BUILD_DIR/install-kylin-python.sh"
+UNINSTALL_SCRIPT_SRC="$BUILD_DIR/uninstall-kylin.sh"
 SETUP_SCRIPT_SRC="$BUILD_DIR/setup-kylin.sh"
 SETUP_DESKTOP_SRC="$BUILD_DIR/setup-kylin.desktop"
 
@@ -181,6 +182,10 @@ fi
 if [ -f "$SETUP_SCRIPT_SRC" ]; then
     cp "$SETUP_SCRIPT_SRC" "$OUTPUT_DIR/setup-kylin.sh"
     chmod +x "$OUTPUT_DIR/setup-kylin.sh"
+fi
+if [ -f "$UNINSTALL_SCRIPT_SRC" ]; then
+    cp "$UNINSTALL_SCRIPT_SRC" "$OUTPUT_DIR/uninstall-kylin.sh"
+    chmod +x "$OUTPUT_DIR/uninstall-kylin.sh"
 fi
 if [ -f "$SETUP_DESKTOP_SRC" ]; then
     cp "$SETUP_DESKTOP_SRC" "$OUTPUT_DIR/setup-kylin.desktop"
