@@ -3,6 +3,7 @@
 基于 Python 的 PDF 桌面工具，支持：
 
 - **PDF 转 Word** — 将 PDF 转为 `.docx`
+- **Word/PPT 转 PDF** — 将 `.doc/.docx/.ppt/.pptx` 转为 PDF（需 LibreOffice）
 - **拼接 PDF** — 多个 PDF 按顺序合并，可自定义保存文件名
 - **拆分 PDF** — 按单页或页码范围（如 `1-3, 5, 7-10`）拆分
 
@@ -30,8 +31,19 @@ python pdf_to_word_gui.py
 | Tab | 功能 |
 |-----|------|
 | PDF 转 Word | 批量转换，支持同目录或指定输出目录 |
+| Word/PPT 转 PDF | 批量转换 Word、PPT 为 PDF |
 | 拼接 PDF | 多文件按列表顺序合并，可重命名保存 |
 | 拆分 PDF | 每页单独拆分，或按页码范围拆分 |
+
+**Word/PPT 转 PDF** 推荐安装 [LibreOffice](https://www.libreoffice.org/)。Mac/Windows 若已装 Microsoft Word，也可 `pip install docx2pdf` 转换 `.docx`。安装示例：
+
+```bash
+# Mac
+brew install --cask libreoffice
+
+# 麒麟 / Ubuntu
+sudo apt install libreoffice
+```
 
 ## 命令行
 

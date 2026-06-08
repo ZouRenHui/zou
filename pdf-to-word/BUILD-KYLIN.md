@@ -159,6 +159,35 @@ chmod +x installer/linux/install-kylin.sh
 
 ## 四、常见问题
 
+### 麒麟安全认证：libexpat.so 未认证应用
+
+**现象：** 双击桌面快捷方式时，弹出「发现未认证应用执行」，涉及 `libexpat.so.1` 等文件。
+
+**原因：** PyInstaller 打包程序自带 `_internal/libexpat.so.1`，麒麟安全机制会拦截。
+
+**解决办法（推荐）：改用 Python 模式**
+
+在已安装的 `PdfToWord` 目录执行（新版安装包已自带 `app_source`）：
+
+```bash
+cd ~/.local/share/PdfToWord
+chmod +x install-kylin-python.sh
+./install-kylin-python.sh
+```
+
+脚本会：
+1. 用系统 Python 安装到 `~/.local/share/pdf-to-word/`
+2. 重建桌面快捷方式（不再启动 PyInstaller 二进制）
+3. 避免 libexpat.so 安全拦截
+
+之后从桌面双击 **「PDF 工具箱」** 即可。
+
+**临时办法：** 在安全认证框中选择 **允许 / 信任**（每次或永久，视系统策略而定）。
+
+**备选：** 将整个 `pdf-to-word` 源码拷到麒麟，运行 `installer/linux/install-kylin.sh`。
+
+---
+
 **Q: 双击无反应？**  
 在终端运行 `./run.sh` 查看报错。
 

@@ -9,6 +9,15 @@ RUN_SCRIPT="$APP_DIR/run.sh"
 MENU_DIR="${HOME}/.local/share/applications"
 DESKTOP_NAMES=("Desktop" "桌面")
 
+# shellcheck disable=SC1091
+source "$APP_DIR/kylin-detect.sh" 2>/dev/null || true
+
+# 麒麟系统优先使用 Python 源码模式，避免 PyInstaller 自带 .so 触发安全认证
+if is_kylin 2>/dev/null && [ -f "$APP_DIR/install-kylin-python.sh" ] && [ -d "$APP_DIR/app_source" ]; then
+    echo "检测到麒麟系统，使用 Python 模式创建快捷方式（绕过 libexpat.so 安全拦截）..."
+    exec "$APP_DIR/install-kylin-python.sh" "$@"
+fi
+
 if [ ! -f "$RUN_SCRIPT" ]; then
     echo "[错误] 找不到 $RUN_SCRIPT"
     echo "请在 PdfToWord 文件夹内执行本脚本。"

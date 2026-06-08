@@ -14,6 +14,8 @@ RUN_SCRIPT_SRC="$BUILD_DIR/run.sh"
 CHECK_SCRIPT_SRC="$BUILD_DIR/check-kylin.sh"
 ARCH_CHECK_SRC="$BUILD_DIR/arch-check.sh"
 SHORTCUT_SCRIPT_SRC="$BUILD_DIR/install-shortcut.sh"
+KYLIN_DETECT_SRC="$BUILD_DIR/kylin-detect.sh"
+KYLIN_PYTHON_SRC="$BUILD_DIR/install-kylin-python.sh"
 SETUP_SCRIPT_SRC="$BUILD_DIR/setup-kylin.sh"
 SETUP_DESKTOP_SRC="$BUILD_DIR/setup-kylin.desktop"
 
@@ -42,9 +44,19 @@ mkdir -p "$INSTALL_BASE"
 echo "Installing PDF Toolbox to: $INSTALL_DIR"
 tail -n "+${ARCHIVE_LINE}" "$0" | tar -xzf - -C "$INSTALL_BASE"
 cd "$INSTALL_DIR"
-chmod +x run.sh PdfToWord check-kylin.sh install-shortcut.sh 2>/dev/null || true
+chmod +x run.sh PdfToWord check-kylin.sh install-shortcut.sh install-kylin-python.sh 2>/dev/null || true
+if [ -f "./install-kylin-python.sh" ] && [ -d "./app_source" ] && [ -f "./kylin-detect.sh" ]; then
+    # shellcheck disable=SC1091
+    source "./kylin-detect.sh"
+    if is_kylin; then
+        ./install-kylin-python.sh || true
+    fi
+fi
 if [ -x "./install-shortcut.sh" ]; then
     ./install-shortcut.sh || true
+fi
+if [ -x "$HOME/.local/share/pdf-to-word/run-python.sh" ]; then
+    exec "$HOME/.local/share/pdf-to-word/run-python.sh" "$@"
 fi
 exec ./run.sh "$@"
 exit 0
@@ -131,6 +143,21 @@ if [ -f "$SHORTCUT_SCRIPT_SRC" ]; then
     cp "$SHORTCUT_SCRIPT_SRC" "$DIST_DIR/install-shortcut.sh"
     chmod +x "$DIST_DIR/install-shortcut.sh"
 fi
+if [ -f "$KYLIN_DETECT_SRC" ]; then
+    cp "$KYLIN_DETECT_SRC" "$DIST_DIR/kylin-detect.sh"
+    chmod +x "$DIST_DIR/kylin-detect.sh"
+fi
+if [ -f "$KYLIN_PYTHON_SRC" ]; then
+    cp "$KYLIN_PYTHON_SRC" "$DIST_DIR/install-kylin-python.sh"
+    chmod +x "$DIST_DIR/install-kylin-python.sh"
+fi
+
+echo "打包 Python 源码（麒麟安全模式）..."
+SOURCE_DIR="$DIST_DIR/app_source"
+mkdir -p "$SOURCE_DIR"
+for f in pdf_to_word_gui.py pdf_to_word.py pdf_tools.py office_to_pdf.py requirements.txt; do
+    cp "$PROJECT_ROOT/$f" "$SOURCE_DIR/"
+done
 
 rm -f "$PORTABLE_TAR_PATH" "$PORTABLE_RUN_PATH"
 tar -czf "$PORTABLE_TAR_PATH" -C "$PROJECT_ROOT/dist" PdfToWord

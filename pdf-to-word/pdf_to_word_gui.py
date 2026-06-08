@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PDF 工具箱图形界面：转 Word、拼接、拆分。"""
+"""PDF 工具箱图形界面：转 Word、拼接、拆分、Word/PPT 转 PDF。"""
 
 from __future__ import annotations
 
@@ -11,8 +11,16 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+from office_to_pdf import collect_office_files, convert_office_to_pdf, resolve_pdf_output
 from pdf_to_word import collect_pdfs, convert_pdf, resolve_docx_path
 from pdf_tools import merge_pdfs, split_pdf_by_ranges, split_pdf_each_page
+
+OFFICE_FILETYPES = [
+    ("办公文档", "*.doc *.docx *.ppt *.pptx *.odt *.odp"),
+    ("Word", "*.doc *.docx"),
+    ("PowerPoint", "*.ppt *.pptx"),
+    ("所有文件", "*.*"),
+]
 
 
 class PdfToolboxApp:
@@ -41,10 +49,17 @@ class PdfToolboxApp:
         self.split_mode = tk.StringVar(value="each")
         self.split_ranges = tk.StringVar(value="1-1")
 
+        # Tab: Word/PPT 转 PDF
+        self.office_paths: list[Path] = []
+        self.office_output_dir = tk.StringVar()
+        self.office_same_dir = tk.BooleanVar(value=True)
+        self.office_recursive = tk.BooleanVar(value=False)
+
         self._build_shell()
         self._build_convert_tab()
         self._build_merge_tab()
         self._build_split_tab()
+        self._build_office_tab()
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
         self._on_tab_changed()
 
@@ -78,7 +93,9 @@ class PdfToolboxApp:
         self.tab_convert = ttk.Frame(self.notebook)
         self.tab_merge = ttk.Frame(self.notebook)
         self.tab_split = ttk.Frame(self.notebook)
+        self.tab_office = ttk.Frame(self.notebook)
         self.notebook.add(self.tab_convert, text="PDF 转 Word")
+        self.notebook.add(self.tab_office, text="Word/PPT 转 PDF")
         self.notebook.add(self.tab_merge, text="拼接 PDF")
         self.notebook.add(self.tab_split, text="拆分 PDF")
 
@@ -215,6 +232,48 @@ class PdfToolboxApp:
         ttk.Entry(row2, textvariable=self.split_output_dir).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 6))
         ttk.Button(row2, text="浏览…", command=self._split_pick_output_dir).pack(side=tk.LEFT)
 
+    # ------------------------------------------------------------------ Tab: office to pdf
+    def _build_office_tab(self) -> None:
+        file_frame = ttk.LabelFrame(self.tab_office, text="待转换的 Word / PPT 文件")
+        file_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=8)
+        self.office_list = self._build_list_panel(
+            file_frame,
+            on_add_files=self._office_add_files,
+            on_add_folder=self._office_add_folder,
+            on_remove=self._office_remove,
+            on_clear=self._office_clear,
+        )
+
+        out_frame = ttk.LabelFrame(self.tab_office, text="输出设置")
+        out_frame.pack(fill=tk.X, padx=10, pady=(0, 8))
+        ttk.Checkbutton(
+            out_frame,
+            text="输出到源文件同目录（默认）",
+            variable=self.office_same_dir,
+            command=self._office_toggle_output_dir,
+        ).pack(anchor=tk.W, padx=8, pady=(8, 2))
+
+        dir_row = ttk.Frame(out_frame)
+        dir_row.pack(fill=tk.X, padx=8, pady=(2, 8))
+        ttk.Label(dir_row, text="输出目录：").pack(side=tk.LEFT)
+        self.office_output_entry = ttk.Entry(
+            dir_row, textvariable=self.office_output_dir, state=tk.DISABLED
+        )
+        self.office_output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=6)
+        self.office_browse_btn = ttk.Button(
+            dir_row, text="浏览…", command=self._office_pick_output_dir, state=tk.DISABLED
+        )
+        self.office_browse_btn.pack(side=tk.LEFT)
+
+        ttk.Checkbutton(
+            out_frame,
+            text="添加文件夹时递归扫描子目录",
+            variable=self.office_recursive,
+        ).pack(anchor=tk.W, padx=8, pady=(0, 4))
+
+        hint = "支持 .doc .docx .ppt .pptx；需安装 LibreOffice（Mac 上 Word 可用系统 textutil）"
+        ttk.Label(out_frame, text=hint, foreground="gray").pack(anchor=tk.W, padx=8, pady=(0, 8))
+
     # ------------------------------------------------------------------ helpers
     def _log(self, message: str) -> None:
         self.log.config(state=tk.NORMAL)
@@ -230,6 +289,7 @@ class PdfToolboxApp:
         idx = self.notebook.index(self.notebook.select())
         labels = [
             ("开始转换", "添加 PDF 后点击开始转换"),
+            ("开始转换", "添加 Word/PPT 后点击开始转换"),
             ("开始拼接", "按顺序添加 PDF 并指定输出文件名"),
             ("开始拆分", "选择 PDF 并设置拆分方式"),
         ]
@@ -244,6 +304,8 @@ class PdfToolboxApp:
         if idx == 0:
             self._start_convert()
         elif idx == 1:
+            self._start_office_convert()
+        elif idx == 2:
             self._start_merge()
         else:
             self._start_split()
@@ -524,6 +586,100 @@ class PdfToolboxApp:
         self.progress["mode"] = "determinate"
         self.progress["value"] = 0
         self._on_done(summary, fail, last_output)
+
+    # ------------------------------------------------------------------ office tab
+    def _office_toggle_output_dir(self) -> None:
+        use_same = self.office_same_dir.get()
+        state = tk.DISABLED if use_same else tk.NORMAL
+        self.office_output_entry.config(state=state)
+        self.office_browse_btn.config(state=state)
+        if use_same:
+            self.office_output_dir.set("")
+
+    def _office_add_files(self) -> None:
+        paths = filedialog.askopenfilenames(
+            title="选择 Word / PPT 文件",
+            filetypes=OFFICE_FILETYPES,
+        )
+        if paths:
+            self.office_paths = self._add_unique_paths([Path(p) for p in paths], self.office_paths)
+            self.office_paths.sort(key=lambda p: str(p).lower())
+            self._refresh_listbox(self.office_list, self.office_paths, f"已添加 {len(self.office_paths)} 个文件")
+
+    def _office_add_folder(self) -> None:
+        folder = filedialog.askdirectory(title="选择包含 Word/PPT 的文件夹")
+        if not folder:
+            return
+        files = collect_office_files([Path(folder)], self.office_recursive.get())
+        if not files:
+            messagebox.showinfo("提示", "该文件夹中未找到 Word/PPT 文件。")
+            return
+        self.office_paths = self._add_unique_paths(files, self.office_paths)
+        self.office_paths.sort(key=lambda p: str(p).lower())
+        self._refresh_listbox(self.office_list, self.office_paths, f"已添加 {len(self.office_paths)} 个文件")
+
+    def _office_remove(self) -> None:
+        indices = list(self.office_list.curselection())
+        for i in reversed(indices):
+            del self.office_paths[i]
+        self._refresh_listbox(self.office_list, self.office_paths, f"已添加 {len(self.office_paths)} 个文件")
+
+    def _office_clear(self) -> None:
+        self.office_paths.clear()
+        self._refresh_listbox(self.office_list, self.office_paths, "列表已清空")
+
+    def _office_pick_output_dir(self) -> None:
+        folder = filedialog.askdirectory(title="选择输出目录")
+        if folder:
+            self.office_output_dir.set(folder)
+            self.office_same_dir.set(False)
+            self._office_toggle_output_dir()
+
+    def _office_get_output_path(self) -> Path | None:
+        if self.office_same_dir.get():
+            return None
+        text = self.office_output_dir.get().strip()
+        return Path(text) if text else None
+
+    def _start_office_convert(self) -> None:
+        if not self.office_paths:
+            messagebox.showwarning("提示", "请先添加至少一个 Word 或 PPT 文件。")
+            return
+        if not self.office_same_dir.get() and not self.office_output_dir.get().strip():
+            messagebox.showwarning("提示", "请指定输出目录，或勾选「输出到源文件同目录」。")
+            return
+
+        self._set_busy(True)
+        self.progress["value"] = 0
+        self.progress["maximum"] = len(self.office_paths)
+        threading.Thread(target=self._run_office_convert, daemon=True).start()
+
+    def _run_office_convert(self) -> None:
+        output = self._office_get_output_path()
+        batch_mode = len(self.office_paths) > 1
+        ok, fail = 0, 0
+        last_output: Path | None = None
+
+        for i, src in enumerate(self.office_paths, start=1):
+            self.root.after(
+                0,
+                lambda n=i, p=src: self.status.config(
+                    text=f"正在转换 ({n}/{len(self.office_paths)}): {p.name}"
+                ),
+            )
+            try:
+                pdf = resolve_pdf_output(src, output, batch_mode=batch_mode)
+                result = convert_office_to_pdf(src, pdf)
+                last_output = result.parent
+                ok += 1
+                self.root.after(0, lambda m=f"完成: {src.name} -> {result.name}": self._log(m))
+            except Exception as exc:  # noqa: BLE001
+                fail += 1
+                self.root.after(0, lambda m=f"失败: {src.name} ({exc})": self._log(m))
+            self.root.after(0, lambda v=i: self.progress.configure(value=v))
+
+        summary = f"转换结束：成功 {ok}，失败 {fail}"
+        self.root.after(0, lambda: self._on_done(summary, fail, last_output))
 
 
 def main() -> None:

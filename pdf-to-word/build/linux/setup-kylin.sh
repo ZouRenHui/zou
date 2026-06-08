@@ -77,7 +77,7 @@ install_from_tarball() {
 
 create_shortcuts() {
     chmod +x "$INSTALL_DIR/run.sh" "$INSTALL_DIR/PdfToWord" \
-        "$INSTALL_DIR/install-shortcut.sh" 2>/dev/null || true
+        "$INSTALL_DIR/install-shortcut.sh" "$INSTALL_DIR/install-kylin-python.sh" 2>/dev/null || true
     if [ -x "$INSTALL_DIR/install-shortcut.sh" ]; then
         (cd "$INSTALL_DIR" && ./install-shortcut.sh)
     else
@@ -87,8 +87,12 @@ create_shortcuts() {
 }
 
 launch_app() {
+    local launcher="$INSTALL_DIR/run.sh"
+    if [ -x "$HOME/.local/share/pdf-to-word/run-python.sh" ]; then
+        launcher="$HOME/.local/share/pdf-to-word/run-python.sh"
+    fi
     if gui_question "安装完成！\n\n是否立即启动 $APP_NAME？"; then
-        exec "$INSTALL_DIR/run.sh"
+        exec "$launcher"
     fi
 }
 
@@ -102,7 +106,11 @@ main() {
             gui_info "快捷方式已更新。\n\n请从桌面或应用菜单打开「$APP_NAME」。"
         fi
         if gui_question "是否立即启动 $APP_NAME？"; then
-            exec "$INSTALL_DIR/run.sh"
+            if [ -x "$HOME/.local/share/pdf-to-word/run-python.sh" ]; then
+                exec "$HOME/.local/share/pdf-to-word/run-python.sh"
+            else
+                exec "$INSTALL_DIR/run.sh"
+            fi
         fi
         exit 0
     fi
