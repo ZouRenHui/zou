@@ -193,6 +193,26 @@ chmod +x install-kylin-python.sh
 
 ---
 
+**Q: 安装后桌面没有快捷方式？**
+
+先在终端补创建（已安装过可跳过 .run，直接执行）：
+
+```bash
+cd ~/.local/share/PdfToWord
+chmod +x install-kylin-python.sh
+./install-kylin-python.sh --shortcut-only
+```
+
+若仍无图标，检查桌面目录并手动标记信任：
+
+```bash
+xdg-user-dir DESKTOP
+ls -la ~/桌面/pdf-toolbox.desktop 2>/dev/null || ls -la ~/Desktop/pdf-toolbox.desktop
+gio set ~/桌面/pdf-toolbox.desktop metadata::trusted true
+```
+
+也可从开始菜单搜索 **「PDF 工具箱」** 启动（应用菜单快捷方式通常已创建）。
+
 **Q: 提示缺少 python3-tk / tkinter？**
 
 新版 `.run` 安装时会**自动检测**，并弹出对话框询问是否安装系统依赖（需管理员密码）。

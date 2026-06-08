@@ -21,6 +21,8 @@ fi
 source "$APP_DIR/kylin-detect.sh" 2>/dev/null || true
 # shellcheck disable=SC1091
 source "$APP_DIR/install-system-deps.sh" 2>/dev/null || true
+# shellcheck disable=SC1091
+source "$APP_DIR/desktop-shortcut.sh" 2>/dev/null || true
 
 gui_info() {
     if command -v zenity >/dev/null 2>&1; then
@@ -129,8 +131,6 @@ EOF
 }
 
 create_shortcuts() {
-    mkdir -p "$MENU_DIR"
-
     DESKTOP_CONTENT="[Desktop Entry]
 Version=1.0
 Type=Application
@@ -148,20 +148,24 @@ StartupNotify=true
 
     MENU_FILE="${MENU_DIR}/${APP_ID}.desktop"
     printf '%s' "$DESKTOP_CONTENT" > "$MENU_FILE"
-    chmod +x "$MENU_FILE"
 
-    for name in "${DESKTOP_NAMES[@]}"; do
-        desk="${HOME}/${name}"
-        if [ -d "$desk" ]; then
-            cp "$MENU_FILE" "${desk}/${APP_ID}.desktop"
-            chmod +x "${desk}/${APP_ID}.desktop"
-            echo "[OK] 桌面快捷方式: ${desk}/${APP_ID}.desktop"
-            break
+    if type install_menu_and_desktop_shortcuts >/dev/null 2>&1; then
+        install_menu_and_desktop_shortcuts "$MENU_FILE" "$APP_ID" "$APP_NAME" || true
+    else
+        mkdir -p "$MENU_DIR"
+        chmod +x "$MENU_FILE"
+        for name in "${DESKTOP_NAMES[@]}"; do
+            desk="${HOME}/${name}"
+            if [ -d "$desk" ]; then
+                cp "$MENU_FILE" "${desk}/${APP_ID}.desktop"
+                chmod +x "${desk}/${APP_ID}.desktop"
+                echo "[OK] 桌面快捷方式: ${desk}/${APP_ID}.desktop"
+                break
+            fi
+        done
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database "$MENU_DIR" 2>/dev/null || true
         fi
-    done
-
-    if command -v update-desktop-database >/dev/null 2>&1; then
-        update-desktop-database "$MENU_DIR" 2>/dev/null || true
     fi
 }
 
@@ -183,6 +187,8 @@ if [ -t 1 ]; then
     echo " 麒麟 Python 模式安装完成"
     echo "========================================"
     echo "启动: $LAUNCHER"
+    echo "桌面: $(find_desktop_dirs 2>/dev/null | head -1 || echo '~/桌面')/${APP_ID}.desktop"
+    echo "菜单: 搜索「${APP_NAME}」"
 else
-    gui_info "安装成功！\n\n已从桌面或应用菜单打开「${APP_NAME}」。\n\n（Python 模式，无 libexpat 安全拦截）"
+    gui_info "安装成功！\n\n桌面与应用菜单已创建「${APP_NAME}」快捷方式。\n\n若桌面未见图标，请在开始菜单搜索「${APP_NAME}」，或执行：\ncd ~/.local/share/PdfToWord && ./install-kylin-python.sh --shortcut-only"
 fi

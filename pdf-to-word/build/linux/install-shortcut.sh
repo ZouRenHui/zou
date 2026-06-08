@@ -11,6 +11,8 @@ DESKTOP_NAMES=("Desktop" "桌面")
 
 # shellcheck disable=SC1091
 source "$APP_DIR/kylin-detect.sh" 2>/dev/null || true
+# shellcheck disable=SC1091
+source "$APP_DIR/desktop-shortcut.sh" 2>/dev/null || true
 
 # 麒麟系统优先使用 Python 源码模式，避免 PyInstaller 自带 .so 触发安全认证
 if is_kylin 2>/dev/null && [ -f "$APP_DIR/install-kylin-python.sh" ] && [ -d "$APP_DIR/app_source" ]; then
@@ -45,22 +47,25 @@ StartupNotify=true
 
 MENU_FILE="${MENU_DIR}/${APP_ID}.desktop"
 printf '%s' "$DESKTOP_CONTENT" > "$MENU_FILE"
-chmod +x "$MENU_FILE"
 
 desktop_linked=false
-for name in "${DESKTOP_NAMES[@]}"; do
-    desk="${HOME}/${name}"
-    if [ -d "$desk" ]; then
-        cp "$MENU_FILE" "${desk}/${APP_ID}.desktop"
-        chmod +x "${desk}/${APP_ID}.desktop"
-        echo "[OK] 桌面快捷方式: ${desk}/${APP_ID}.desktop"
-        desktop_linked=true
-        break
+if type install_menu_and_desktop_shortcuts >/dev/null 2>&1; then
+    install_menu_and_desktop_shortcuts "$MENU_FILE" "$APP_ID" "$APP_NAME" && desktop_linked=true || true
+else
+    chmod +x "$MENU_FILE"
+    for name in "${DESKTOP_NAMES[@]}"; do
+        desk="${HOME}/${name}"
+        if [ -d "$desk" ]; then
+            cp "$MENU_FILE" "${desk}/${APP_ID}.desktop"
+            chmod +x "${desk}/${APP_ID}.desktop"
+            echo "[OK] 桌面快捷方式: ${desk}/${APP_ID}.desktop"
+            desktop_linked=true
+            break
+        fi
+    done
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "$MENU_DIR" 2>/dev/null || true
     fi
-done
-
-if command -v update-desktop-database >/dev/null 2>&1; then
-    update-desktop-database "$MENU_DIR" 2>/dev/null || true
 fi
 
 echo ""

@@ -17,6 +17,7 @@ SHORTCUT_SCRIPT_SRC="$BUILD_DIR/install-shortcut.sh"
 KYLIN_DETECT_SRC="$BUILD_DIR/kylin-detect.sh"
 KYLIN_PYTHON_SRC="$BUILD_DIR/install-kylin-python.sh"
 SYSTEM_DEPS_SRC="$BUILD_DIR/install-system-deps.sh"
+DESKTOP_SHORTCUT_SRC="$BUILD_DIR/desktop-shortcut.sh"
 UNINSTALL_SCRIPT_SRC="$BUILD_DIR/uninstall-kylin.sh"
 SETUP_SCRIPT_SRC="$BUILD_DIR/setup-kylin.sh"
 SETUP_DESKTOP_SRC="$BUILD_DIR/setup-kylin.desktop"
@@ -54,7 +55,7 @@ INSTALL_DIR="$INSTALL_BASE/PdfToWord"
 mkdir -p "$INSTALL_BASE"
 tail -n "+${ARCHIVE_LINE}" "$0" | tar -xzf - -C "$INSTALL_BASE"
 cd "$INSTALL_DIR"
-chmod +x run.sh install-shortcut.sh install-kylin-python.sh install-system-deps.sh kylin-detect.sh 2>/dev/null || true
+chmod +x run.sh install-shortcut.sh install-kylin-python.sh install-system-deps.sh desktop-shortcut.sh kylin-detect.sh 2>/dev/null || true
 
 # 麒麟：一键安装 Python 模式（推荐，避免 libexpat 安全拦截）
 if [ -f "./kylin-detect.sh" ]; then
@@ -62,6 +63,7 @@ if [ -f "./kylin-detect.sh" ]; then
     source "./kylin-detect.sh"
     if is_kylin && [ -f "./install-kylin-python.sh" ] && [ -d "./app_source" ]; then
         ./install-kylin-python.sh
+        ./install-kylin-python.sh --shortcut-only 2>/dev/null || true
         exec "$HOME/.local/share/pdf-to-word/run-python.sh"
     fi
 fi
@@ -165,6 +167,10 @@ fi
 if [ -f "$SYSTEM_DEPS_SRC" ]; then
     cp "$SYSTEM_DEPS_SRC" "$DIST_DIR/install-system-deps.sh"
     chmod +x "$DIST_DIR/install-system-deps.sh"
+fi
+if [ -f "$DESKTOP_SHORTCUT_SRC" ]; then
+    cp "$DESKTOP_SHORTCUT_SRC" "$DIST_DIR/desktop-shortcut.sh"
+    chmod +x "$DIST_DIR/desktop-shortcut.sh"
 fi
 
 echo "打包 Python 源码（麒麟安全模式）..."
