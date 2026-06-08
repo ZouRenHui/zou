@@ -24,6 +24,7 @@ git push   # 推送后自动构建，或 Actions 手动 Run workflow
 2. 右键 → 属性 → 权限 → 勾选 **「允许作为程序执行」**
 3. **双击** `PdfToWord-Kylin-aarch64.run`
 4. 等待安装完成（首次需联网安装 Python 依赖，约 1–3 分钟）
+4. 自动检测并安装 `python3-tk`（缺时会弹出密码框请求管理员权限）
 5. 自动创建桌面快捷方式并启动 **「PDF 工具箱」**
 
 > 新版在麒麟上会自动使用 **Python 模式** 安装，避免 libexpat.so 安全拦截。  
@@ -191,6 +192,20 @@ chmod +x install-kylin-python.sh
 **备选：** 将整个 `pdf-to-word` 源码拷到麒麟，运行 `installer/linux/install-kylin.sh`。
 
 ---
+
+**Q: 提示缺少 python3-tk / tkinter？**
+
+新版 `.run` 安装时会**自动检测**，并弹出对话框询问是否安装系统依赖（需管理员密码）。
+
+若自动安装后仍失败，在终端手动执行（注意版本号要与 `python3 --version` 一致）：
+
+```bash
+python3 --version
+sudo apt-get update
+sudo apt-get install -y python3 python3-pip python3-venv python3-tk
+# 若上面无效，按 Python 版本安装，例如 3.8：
+sudo apt-get install -y python3.8-tk
+```
 
 **Q: 双击无反应？**  
 在终端运行 `./run.sh` 查看报错。

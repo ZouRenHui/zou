@@ -19,6 +19,8 @@ fi
 
 # shellcheck disable=SC1091
 source "$APP_DIR/kylin-detect.sh" 2>/dev/null || true
+# shellcheck disable=SC1091
+source "$APP_DIR/install-system-deps.sh" 2>/dev/null || true
 
 gui_info() {
     if command -v zenity >/dev/null 2>&1; then
@@ -36,18 +38,42 @@ gui_error() {
     fi
 }
 
+gui_question() {
+    if command -v zenity >/dev/null 2>&1; then
+        zenity --question --title="$APP_NAME" --text="$1" --width=460 2>/dev/null
+        return $?
+    elif command -v kdialog >/dev/null 2>&1; then
+        kdialog --yesno "$1" 2>/dev/null
+        return $?
+    else
+        echo "$1"
+        read -r -p "是否继续？(y/n): " ans
+        [[ "$ans" =~ ^[Yy] ]]
+    fi
+}
+
 if [ ! -d "$SOURCE_DIR" ]; then
     gui_error "未找到 app_source 源码目录。\n请使用最新版 PdfToWord-Kylin-aarch64.run 安装包。"
     exit 1
 fi
 
-check_tkinter() {
-    python3 -c "import tkinter" 2>/dev/null
-}
+ensure_tkinter_or_exit() {
+    if type ensure_tkinter >/dev/null 2>&1; then
+        if ensure_tkinter gui_question; then
+            return 0
+        fi
+        if type tkinter_failure_message >/dev/null 2>&1; then
+            gui_error "$(tkinter_failure_message)"
+        else
+            gui_error "缺少 python3-tk，图形界面无法启动。\n\n请在终端执行：\n  sudo apt-get install -y python3 python3-tk\n\n安装完成后重新双击安装包。"
+        fi
+        exit 1
+    fi
 
-install_deps_hint() {
-    gui_error "缺少 python3-tk，图形界面无法启动。\n\n请在终端执行：\n  sudo apt install python3 python3-pip python3-venv python3-tk\n\n安装完成后重新双击安装包。"
-    exit 1
+    if ! python3 -c "import tkinter" 2>/dev/null; then
+        gui_error "缺少 python3-tk，图形界面无法启动。\n\n请在终端执行：\n  sudo apt-get install -y python3 python3-tk\n\n安装完成后重新双击安装包。"
+        exit 1
+    fi
 }
 
 setup_app() {
@@ -56,12 +82,31 @@ setup_app() {
     rm -rf "$INSTALL_ROOT/app"
     cp -a "$SOURCE_DIR/." "$INSTALL_ROOT/app/"
 
+    # tkinter 是系统包，venv 必须保留 system-site-packages 才能 import tkinter
     if [ ! -d "$VENV_DIR" ]; then
-        python3 -m venv "$VENV_DIR"
+        python3 -m venv --system-site-packages "$VENV_DIR"
+    elif ! grep -q 'include-system-site-packages = true' "$VENV_DIR/pyvenv.cfg" 2>/dev/null; then
+        echo "重建虚拟环境（启用 system-site-packages 以支持 tkinter）..."
+        rm -rf "$VENV_DIR"
+        python3 -m venv --system-site-packages "$VENV_DIR"
     fi
 
     # shellcheck disable=SC1091
     source "$VENV_DIR/bin/activate"
+
+    if ! check_tkinter python; then
+        echo "[警告] 虚拟环境中 tkinter 不可用，尝试修复..."
+        if type reinstall_apt_tk_packages >/dev/null 2>&1; then
+            reinstall_apt_tk_packages || true
+        fi
+        if ! check_tkinter python; then
+            local msg
+            msg="$(type tkinter_failure_message >/dev/null 2>&1 && tkinter_failure_message || echo "虚拟环境中 tkinter 不可用")"
+            gui_error "$msg"
+            exit 1
+        fi
+    fi
+
     python -m pip install --upgrade pip -q
     if command -v zenity >/dev/null 2>&1; then
         (
@@ -121,9 +166,7 @@ StartupNotify=true
 }
 
 if ! $SHORTCUT_ONLY; then
-    if ! check_tkinter; then
-        install_deps_hint
-    fi
+    ensure_tkinter_or_exit
     setup_app
 fi
 
