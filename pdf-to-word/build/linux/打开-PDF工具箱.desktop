@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=打开 PDF 工具箱
+Name[zh_CN]=打开 PDF 工具箱
+Comment=直接打开 PDF 工具箱（无需命令行）
+Comment[zh_CN]=直接打开 PDF 工具箱
+Exec=/bin/bash -c "exec \"$HOME/.local/share/pdf-to-word/run-python.sh\""
+Icon=application-pdf
+Terminal=false
+Categories=Office;Utility;
+StartupNotify=true

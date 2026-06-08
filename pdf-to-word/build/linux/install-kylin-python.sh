@@ -135,7 +135,7 @@ EOF
     fi
     echo "[OK] 启动脚本: $LAUNCHER"
 
-    for helper in python-launcher.sh desktop-shortcut.sh repair-menu.sh; do
+    for helper in python-launcher.sh desktop-shortcut.sh repair-menu.sh gui-dialog.sh; do
         if [ -f "$APP_DIR/$helper" ]; then
             cp "$APP_DIR/$helper" "$INSTALL_ROOT/"
             chmod +x "$INSTALL_ROOT/$helper" 2>/dev/null || true
@@ -195,6 +195,12 @@ if ! $SHORTCUT_ONLY; then
     setup_app
 else
     # 仅重建快捷方式时，同步修复启动脚本（解决菜单点击无反应）
+    for helper in python-launcher.sh desktop-shortcut.sh gui-dialog.sh repair-menu.sh; do
+        if [ -f "$APP_DIR/$helper" ]; then
+            cp "$APP_DIR/$helper" "$INSTALL_ROOT/"
+            chmod +x "$INSTALL_ROOT/$helper" 2>/dev/null || true
+        fi
+    done
     if [ -d "$VENV_DIR" ] && type write_python_launcher >/dev/null 2>&1; then
         write_python_launcher "$INSTALL_ROOT" "$VENV_DIR" "$LAUNCHER" "$APP_NAME"
         echo "[OK] 已更新启动脚本: $LAUNCHER"
@@ -208,7 +214,13 @@ fi
 
 create_shortcuts
 
-if [ -t 1 ]; then
+if [ -x "$INSTALL_ROOT/repair-menu.sh" ]; then
+    if $SHORTCUT_ONLY; then
+        bash "$INSTALL_ROOT/repair-menu.sh" || true
+    else
+        bash "$INSTALL_ROOT/repair-menu.sh" --post-install || true
+    fi
+elif [ -t 1 ]; then
     echo ""
     echo "========================================"
     echo " 麒麟 Python 模式安装完成"
@@ -217,5 +229,5 @@ if [ -t 1 ]; then
     echo "桌面: $(find_desktop_dirs 2>/dev/null | head -1 || echo '~/桌面')/${APP_ID}.desktop"
     echo "菜单: 搜索「${APP_NAME}」"
 else
-    gui_info "安装成功！\n\n桌面与应用菜单已创建「${APP_NAME}」快捷方式。\n\n若桌面未见图标，请在开始菜单搜索「${APP_NAME}」，或执行：\ncd ~/.local/share/PdfToWord && ./install-kylin-python.sh --shortcut-only"
+    gui_info "安装成功！\n\n请双击桌面上的「PDF 工具箱」打开。\n\n若打不开，请双击「修复 PDF 工具箱」。"
 fi

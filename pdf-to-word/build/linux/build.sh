@@ -19,7 +19,10 @@ KYLIN_PYTHON_SRC="$BUILD_DIR/install-kylin-python.sh"
 SYSTEM_DEPS_SRC="$BUILD_DIR/install-system-deps.sh"
 DESKTOP_SHORTCUT_SRC="$BUILD_DIR/desktop-shortcut.sh"
 PYTHON_LAUNCHER_SRC="$BUILD_DIR/python-launcher.sh"
-REPAIR_MENU_SRC="$BUILD_DIR/repair-menu.sh"
+GUI_DIALOG_SRC="$BUILD_DIR/gui-dialog.sh"
+USER_GUIDE_SRC="$BUILD_DIR/使用说明.txt"
+REPAIR_DESKTOP_SRC="$BUILD_DIR/一键修复-PDF工具箱.desktop"
+LAUNCH_DESKTOP_SRC="$BUILD_DIR/打开-PDF工具箱.desktop"
 UNINSTALL_SCRIPT_SRC="$BUILD_DIR/uninstall-kylin.sh"
 SETUP_SCRIPT_SRC="$BUILD_DIR/setup-kylin.sh"
 SETUP_DESKTOP_SRC="$BUILD_DIR/setup-kylin.desktop"
@@ -57,7 +60,7 @@ INSTALL_DIR="$INSTALL_BASE/PdfToWord"
 mkdir -p "$INSTALL_BASE"
 tail -n "+${ARCHIVE_LINE}" "$0" | tar -xzf - -C "$INSTALL_BASE"
 cd "$INSTALL_DIR"
-chmod +x run.sh install-shortcut.sh install-kylin-python.sh install-system-deps.sh desktop-shortcut.sh python-launcher.sh repair-menu.sh kylin-detect.sh 2>/dev/null || true
+chmod +x run.sh install-shortcut.sh install-kylin-python.sh install-system-deps.sh desktop-shortcut.sh python-launcher.sh repair-menu.sh gui-dialog.sh kylin-detect.sh 2>/dev/null || true
 
 # 麒麟：一键安装 Python 模式（推荐，避免 libexpat 安全拦截）
 if [ -f "./kylin-detect.sh" ]; then
@@ -65,8 +68,7 @@ if [ -f "./kylin-detect.sh" ]; then
     source "./kylin-detect.sh"
     if is_kylin && [ -f "./install-kylin-python.sh" ] && [ -d "./app_source" ]; then
         ./install-kylin-python.sh
-        ./install-kylin-python.sh --shortcut-only 2>/dev/null || true
-        exec "$HOME/.local/share/pdf-to-word/run-python.sh"
+        exit 0
     fi
 fi
 
@@ -183,6 +185,36 @@ if [ -f "$REPAIR_MENU_SRC" ]; then
     chmod +x "$DIST_DIR/repair-menu.sh"
     cp "$REPAIR_MENU_SRC" "$OUTPUT_DIR/repair-menu.sh"
     chmod +x "$OUTPUT_DIR/repair-menu.sh"
+fi
+if [ -f "$GUI_DIALOG_SRC" ]; then
+    cp "$GUI_DIALOG_SRC" "$DIST_DIR/gui-dialog.sh"
+    chmod +x "$DIST_DIR/gui-dialog.sh"
+    cp "$GUI_DIALOG_SRC" "$OUTPUT_DIR/gui-dialog.sh"
+    chmod +x "$OUTPUT_DIR/gui-dialog.sh"
+fi
+if [ -f "$USER_GUIDE_SRC" ]; then
+    cp "$USER_GUIDE_SRC" "$OUTPUT_DIR/使用说明.txt"
+fi
+if [ -f "$REPAIR_DESKTOP_SRC" ]; then
+    cp "$REPAIR_DESKTOP_SRC" "$OUTPUT_DIR/一键修复-PDF工具箱.desktop"
+    chmod +x "$OUTPUT_DIR/一键修复-PDF工具箱.desktop"
+fi
+if [ -f "$LAUNCH_DESKTOP_SRC" ]; then
+    cp "$LAUNCH_DESKTOP_SRC" "$OUTPUT_DIR/打开-PDF工具箱.desktop"
+    chmod +x "$OUTPUT_DIR/打开-PDF工具箱.desktop"
+fi
+
+# 远程用户修复包（解压后双击「一键修复」即可，无需命令行）
+REPAIR_ZIP="$OUTPUT_DIR/PdfToWord-修复包-${ARCH}.zip"
+if command -v zip >/dev/null 2>&1 && [ -f "$REPAIR_MENU_SRC" ]; then
+    rm -f "$REPAIR_ZIP"
+    (
+        cd "$BUILD_DIR"
+        zip -q "$REPAIR_ZIP" \
+            repair-menu.sh gui-dialog.sh python-launcher.sh desktop-shortcut.sh \
+            一键修复-PDF工具箱.desktop 打开-PDF工具箱.desktop 使用说明.txt
+    )
+    echo "[OK] 修复包: $REPAIR_ZIP"
 fi
 
 echo "打包 Python 源码（麒麟安全模式）..."

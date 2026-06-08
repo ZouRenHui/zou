@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=一键修复 PDF 工具箱
+Name[zh_CN]=一键修复 PDF 工具箱
+Comment=程序打不开时双击这里（无需命令行）
+Comment[zh_CN]=程序打不开时双击这里
+Exec=sh -c 'R="$HOME/.local/share/pdf-to-word/repair-menu.sh"; D="$(dirname "$(readlink -f "$1" 2>/dev/null || echo "$1")")"; if [ -x "$R" ]; then exec /bin/bash "$R"; elif [ -x "$D/repair-menu.sh" ]; then exec /bin/bash "$D/repair-menu.sh"; elif [ -x "$HOME/.local/share/PdfToWord/repair-menu.sh" ]; then exec /bin/bash "$HOME/.local/share/PdfToWord/repair-menu.sh"; elif command -v zenity >/dev/null 2>&1; then zenity --error --title="PDF 工具箱" --text="请先双击运行安装包 PdfToWord-Kylin-aarch64.run 完成安装。"; fi' sh '%k'
+Icon=system-software-update
+Terminal=false
+Categories=Utility;
+StartupNotify=true
