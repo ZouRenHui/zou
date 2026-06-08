@@ -23,6 +23,8 @@ source "$APP_DIR/kylin-detect.sh" 2>/dev/null || true
 source "$APP_DIR/install-system-deps.sh" 2>/dev/null || true
 # shellcheck disable=SC1091
 source "$APP_DIR/desktop-shortcut.sh" 2>/dev/null || true
+# shellcheck disable=SC1091
+source "$APP_DIR/python-launcher.sh" 2>/dev/null || true
 
 gui_info() {
     if command -v zenity >/dev/null 2>&1; then
@@ -54,7 +56,7 @@ gui_question() {
     fi
 }
 
-if [ ! -d "$SOURCE_DIR" ]; then
+if [ ! -d "$SOURCE_DIR" ] && ! $SHORTCUT_ONLY; then
     gui_error "未找到 app_source 源码目录。\n请使用最新版 PdfToWord-Kylin-aarch64.run 安装包。"
     exit 1
 fi
@@ -121,16 +123,35 @@ setup_app() {
         python -m pip install -r "$INSTALL_ROOT/app/requirements.txt" -q
     fi
 
-    cat > "$LAUNCHER" <<EOF
+    if type write_python_launcher >/dev/null 2>&1; then
+        write_python_launcher "$INSTALL_ROOT" "$VENV_DIR" "$LAUNCHER" "$APP_NAME"
+    else
+        cat > "$LAUNCHER" <<EOF
 #!/usr/bin/env bash
 source "$VENV_DIR/bin/activate"
 exec python "$INSTALL_ROOT/app/pdf_to_word_gui.py" "\$@"
 EOF
-    chmod +x "$LAUNCHER"
+        chmod +x "$LAUNCHER"
+    fi
     echo "[OK] 启动脚本: $LAUNCHER"
+
+    for helper in python-launcher.sh desktop-shortcut.sh repair-menu.sh; do
+        if [ -f "$APP_DIR/$helper" ]; then
+            cp "$APP_DIR/$helper" "$INSTALL_ROOT/"
+            chmod +x "$INSTALL_ROOT/$helper" 2>/dev/null || true
+        fi
+    done
 }
 
 create_shortcuts() {
+    local exec_line="Exec=${LAUNCHER}"
+    if type desktop_exec_line >/dev/null 2>&1; then
+        exec_line="$(desktop_exec_line "$LAUNCHER")"
+    fi
+
+    # 移除旧版菜单项（可能指向 PyInstaller 二进制，点击无反应）
+    rm -f "${MENU_DIR}/pdf-to-word.desktop"
+
     DESKTOP_CONTENT="[Desktop Entry]
 Version=1.0
 Type=Application
@@ -138,7 +159,7 @@ Name=${APP_NAME}
 Name[zh_CN]=${APP_NAME}
 Comment=PDF 转 Word、拼接、拆分
 Comment[zh_CN]=PDF 转 Word、拼接、拆分
-Exec=${LAUNCHER}
+${exec_line}
 Path=${INSTALL_ROOT}
 Icon=application-pdf
 Terminal=false
@@ -172,6 +193,12 @@ StartupNotify=true
 if ! $SHORTCUT_ONLY; then
     ensure_tkinter_or_exit
     setup_app
+else
+    # 仅重建快捷方式时，同步修复启动脚本（解决菜单点击无反应）
+    if [ -d "$VENV_DIR" ] && type write_python_launcher >/dev/null 2>&1; then
+        write_python_launcher "$INSTALL_ROOT" "$VENV_DIR" "$LAUNCHER" "$APP_NAME"
+        echo "[OK] 已更新启动脚本: $LAUNCHER"
+    fi
 fi
 
 if [ ! -x "$LAUNCHER" ]; then

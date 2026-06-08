@@ -193,6 +193,40 @@ chmod +x install-kylin-python.sh
 
 ---
 
+**Q: 开始菜单有「PDF 工具箱」但点击没反应？**
+
+通常是快捷方式指向了错误的启动命令，或启动失败但未显示错误。在终端执行：
+
+```bash
+# 1. 直接测试启动（看报错）
+~/.local/share/pdf-to-word/run-python.sh
+
+# 2. 查看日志
+cat ~/.local/share/pdf-to-word/launch.log
+
+# 3. 修复菜单（新版安装包自带 repair-menu.sh）
+cd ~/.local/share/PdfToWord && chmod +x repair-menu.sh && ./repair-menu.sh
+# 或
+cd ~/.local/share/pdf-to-word && chmod +x repair-menu.sh && ./repair-menu.sh
+```
+
+若 `PdfToWord` 目录已删除，可手动修复菜单项：
+
+```bash
+cat > ~/.local/share/applications/pdf-toolbox.desktop << 'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PDF 工具箱
+Exec=/bin/bash "/home/你的用户名/.local/share/pdf-to-word/run-python.sh"
+Path=/home/你的用户名/.local/share/pdf-to-word
+Icon=application-pdf
+Terminal=false
+Categories=Office;Utility;
+EOF
+update-desktop-database ~/.local/share/applications 2>/dev/null || true
+```
+
 **Q: 安装后桌面没有快捷方式？**
 
 先在终端补创建（已安装过可跳过 .run，直接执行）：

@@ -18,6 +18,8 @@ KYLIN_DETECT_SRC="$BUILD_DIR/kylin-detect.sh"
 KYLIN_PYTHON_SRC="$BUILD_DIR/install-kylin-python.sh"
 SYSTEM_DEPS_SRC="$BUILD_DIR/install-system-deps.sh"
 DESKTOP_SHORTCUT_SRC="$BUILD_DIR/desktop-shortcut.sh"
+PYTHON_LAUNCHER_SRC="$BUILD_DIR/python-launcher.sh"
+REPAIR_MENU_SRC="$BUILD_DIR/repair-menu.sh"
 UNINSTALL_SCRIPT_SRC="$BUILD_DIR/uninstall-kylin.sh"
 SETUP_SCRIPT_SRC="$BUILD_DIR/setup-kylin.sh"
 SETUP_DESKTOP_SRC="$BUILD_DIR/setup-kylin.desktop"
@@ -55,7 +57,7 @@ INSTALL_DIR="$INSTALL_BASE/PdfToWord"
 mkdir -p "$INSTALL_BASE"
 tail -n "+${ARCHIVE_LINE}" "$0" | tar -xzf - -C "$INSTALL_BASE"
 cd "$INSTALL_DIR"
-chmod +x run.sh install-shortcut.sh install-kylin-python.sh install-system-deps.sh desktop-shortcut.sh kylin-detect.sh 2>/dev/null || true
+chmod +x run.sh install-shortcut.sh install-kylin-python.sh install-system-deps.sh desktop-shortcut.sh python-launcher.sh repair-menu.sh kylin-detect.sh 2>/dev/null || true
 
 # 麒麟：一键安装 Python 模式（推荐，避免 libexpat 安全拦截）
 if [ -f "./kylin-detect.sh" ]; then
@@ -171,6 +173,16 @@ fi
 if [ -f "$DESKTOP_SHORTCUT_SRC" ]; then
     cp "$DESKTOP_SHORTCUT_SRC" "$DIST_DIR/desktop-shortcut.sh"
     chmod +x "$DIST_DIR/desktop-shortcut.sh"
+fi
+if [ -f "$PYTHON_LAUNCHER_SRC" ]; then
+    cp "$PYTHON_LAUNCHER_SRC" "$DIST_DIR/python-launcher.sh"
+    chmod +x "$DIST_DIR/python-launcher.sh"
+fi
+if [ -f "$REPAIR_MENU_SRC" ]; then
+    cp "$REPAIR_MENU_SRC" "$DIST_DIR/repair-menu.sh"
+    chmod +x "$DIST_DIR/repair-menu.sh"
+    cp "$REPAIR_MENU_SRC" "$OUTPUT_DIR/repair-menu.sh"
+    chmod +x "$OUTPUT_DIR/repair-menu.sh"
 fi
 
 echo "打包 Python 源码（麒麟安全模式）..."
