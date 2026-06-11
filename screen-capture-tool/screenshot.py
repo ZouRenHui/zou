@@ -182,6 +182,26 @@ class RegionSelector:
         self.root.lift()
         self.root.focus_force()
 
+    def _delayed_finish(self, region: CaptureRegion | None, *, delay_ms: int = 120) -> None:
+        """在主窗口上调度收尾，避免在即将销毁的 Toplevel 上使用 after()（macOS 3.12 会报错）。"""
+        parent = self.root.master
+        self.root.withdraw()
+        self.root.update_idletasks()
+        toplevel = self.root
+
+        def finish() -> None:
+            try:
+                if toplevel.winfo_exists():
+                    toplevel.destroy()
+            except tk.TclError:
+                pass
+            self._on_complete(region)
+
+        try:
+            parent.after(delay_ms, finish)
+        except tk.TclError:
+            finish()
+
     def _on_press(self, event: tk.Event) -> None:
         self._active = True
         self._start_x = event.x
@@ -220,18 +240,7 @@ class RegionSelector:
         if width >= 5 and height >= 5:
             region = CaptureRegion(left=left, top=top, width=width, height=height)
 
-        self.root.withdraw()
-        self.root.update_idletasks()
-        self.root.after(120, lambda: self._finish(region))
-
-    def _finish(self, region: CaptureRegion | None) -> None:
-        self.root.destroy()
-        self._on_complete(region)
+        self._delayed_finish(region, delay_ms=120)
 
     def _cancel(self) -> None:
-        self.root.withdraw()
-        self.root.after(80, self._finish_cancel)
-
-    def _finish_cancel(self) -> None:
-        self.root.destroy()
-        self._on_complete(None)
+        self._delayed_finish(None, delay_ms=80)

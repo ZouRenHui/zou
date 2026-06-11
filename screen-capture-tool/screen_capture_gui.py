@@ -29,6 +29,7 @@ class ScreenCaptureApp:
 
         self.recorder = ScreenRecorder()
         self._timer_job: str | None = None
+        self._closing = False
         self._last_image: Image.Image | None = None
         self._preview_photo: ImageTk.PhotoImage | None = None
         self._region_selector: RegionSelector | None = None
@@ -39,6 +40,17 @@ class ScreenCaptureApp:
 
         self._build_ui()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _schedule(self, delay_ms: int, callback) -> str | None:
+        """在主窗口上安全调度 after 回调。"""
+        if self._closing:
+            return None
+        try:
+            if not self.root.winfo_exists():
+                return None
+            return self.root.after(delay_ms, callback)
+        except tk.TclError:
+            return None
 
     def _build_ui(self) -> None:
         pad = {"padx": 10, "pady": 6}
@@ -134,7 +146,7 @@ class ScreenCaptureApp:
 
         def worker() -> None:
             path = self.recorder.stop()
-            self.root.after(0, lambda: self._on_recording_stopped(path))
+            self._schedule(0, lambda: self._on_recording_stopped(path))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -174,17 +186,22 @@ class ScreenCaptureApp:
         self._tick_timer()
 
     def _tick_timer(self) -> None:
-        if not self.recorder.is_recording:
+        if self._closing or not self.recorder.is_recording:
             return
         elapsed = int(self.recorder.elapsed_seconds())
         mins, secs = divmod(elapsed, 60)
         self.record_timer.set(f"{mins:02d}:{secs:02d}")
-        self._timer_job = self.root.after(500, self._tick_timer)
+        self._timer_job = self._schedule(500, self._tick_timer)
 
     def _stop_timer(self) -> None:
-        if self._timer_job is not None:
-            self.root.after_cancel(self._timer_job)
-            self._timer_job = None
+        if self._timer_job is None:
+            return
+        try:
+            if self.root.winfo_exists():
+                self.root.after_cancel(self._timer_job)
+        except (tk.TclError, ValueError, AttributeError):
+            pass
+        self._timer_job = None
 
     # --------------------------------------------------------------- screenshot
     def _hide_for_capture(self) -> None:
@@ -196,7 +213,7 @@ class ScreenCaptureApp:
     def _shot_fullscreen(self) -> None:
         self._hide_for_capture()
         # 等待窗口管理器刷新，确保前景应用画面已显示
-        self.root.after(350, self._do_fullscreen_capture)
+        self._schedule(350, self._do_fullscreen_capture)
 
     def _do_fullscreen_capture(self) -> None:
         try:
@@ -210,7 +227,7 @@ class ScreenCaptureApp:
 
     def _shot_region(self) -> None:
         self._hide_for_capture()
-        self.root.after(150, self._open_region_selector)
+        self._schedule(150, self._open_region_selector)
 
     def _open_region_selector(self) -> None:
         def on_region(region) -> None:
@@ -219,7 +236,7 @@ class ScreenCaptureApp:
                 self.shot_status.set("已取消区域选择")
                 return
             # 遮罩关闭后再延迟一帧，确保截到真实前景画面
-            self.root.after(150, lambda: self._do_region_capture(region))
+            self._schedule(150, lambda: self._do_region_capture(region))
 
         self._region_selector = RegionSelector(on_region, parent=self.root)
 
@@ -311,6 +328,8 @@ class ScreenCaptureApp:
             ):
                 return
             self.recorder.stop()
+        self._closing = True
+        self._stop_timer()
         self.root.destroy()
 
 
