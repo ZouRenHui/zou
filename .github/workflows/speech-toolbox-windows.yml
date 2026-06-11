@@ -1,0 +1,70 @@
+name: Speech Toolbox - Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - "speech-toolbox/**"
+      - ".github/workflows/speech-toolbox-windows.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: speech-toolbox
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            speech-toolbox/requirements.txt
+            speech-toolbox/build/windows/requirements-build.txt
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build exe, portable zip and installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          .\build\windows\build.ps1
+
+      - name: Verify build outputs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = "dist\SpeechToolbox\SpeechToolbox.exe"
+          $portable = "installer\output\SpeechToolbox-Portable.zip"
+          $setup = "installer\output\SpeechToolboxSetup.exe"
+          if (-not (Test-Path $exe)) { throw "Missing $exe" }
+          if (-not (Test-Path $portable)) { throw "Missing $portable" }
+          if (-not (Test-Path $setup)) { throw "Missing $setup" }
+          Write-Host "OK: $exe"
+          Write-Host "OK: $portable"
+          Write-Host "OK: $setup"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpeechToolbox-Windows
+          path: |
+            speech-toolbox/installer/output/SpeechToolbox-Portable.zip
+            speech-toolbox/installer/output/SpeechToolboxSetup.exe
+          if-no-files-found: error
+
+      - name: Create GitHub Release on tag
+        if: startsWith(github.ref, 'refs/tags/speech-toolbox-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            speech-toolbox/installer/output/SpeechToolbox-Portable.zip
+            speech-toolbox/installer/output/SpeechToolboxSetup.exe
+          generate_release_notes: true
