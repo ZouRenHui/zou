@@ -70,22 +70,22 @@ class ScreenRecorder:
         self._last_error = ""
 
     @property
-    is_recording(self) -> bool:
+    def is_recording(self) -> bool:
         with self._lock:
             return self._state.is_recording
 
     @property
-    uses_audio(self) -> bool:
+    def uses_audio(self) -> bool:
         with self._lock:
             return self._state.uses_audio
 
     @property
-    backend(self) -> str:
+    def backend(self) -> str:
         with self._lock:
             return self._state.backend
 
     @property
-    last_error(self) -> str:
+    def last_error(self) -> str:
         return self._last_error
 
     def elapsed_seconds(self) -> float:
