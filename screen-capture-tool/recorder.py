@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import platform
 import re
 import shutil
 import subprocess
+import tempfile
 import threading
 import time
 from dataclasses import dataclass
@@ -14,6 +16,8 @@ from pathlib import Path
 import cv2
 import mss
 import numpy as np
+
+_STARTUP_WAIT_SEC = 1.2
 
 
 @dataclass
@@ -25,6 +29,37 @@ class RecorderState:
     backend: str = ""
 
 
+@dataclass(frozen=True)
+class FfmpegAttempt:
+    cmd: list[str]
+    uses_audio: bool
+    note: str
+
+
+def _subprocess_run_kwargs() -> dict:
+    if platform.system() != "Windows":
+        return {}
+    return {"creationflags": subprocess.CREATE_NO_WINDOW}
+
+
+def _subprocess_popen_kwargs() -> dict:
+    if platform.system() != "Windows":
+        return {}
+    return {"creationflags": subprocess.CREATE_NO_WINDOW}
+
+
+def _summarize_ffmpeg_error(text: str) -> str:
+    text = text.strip()
+    if not text:
+        return "ffmpeg 异常退出（无错误输出）"
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    for ln in reversed(lines):
+        lower = ln.lower()
+        if any(k in lower for k in ("error", "failed", "invalid", "not found", "cannot")):
+            return ln[:300]
+    return lines[-1][:300]
+
+
 class ScreenRecorder:
     def __init__(self) -> None:
         self._state = RecorderState()
@@ -32,21 +67,26 @@ class ScreenRecorder:
         self._fallback_thread: threading.Thread | None = None
         self._fallback_stop = threading.Event()
         self._lock = threading.Lock()
+        self._last_error = ""
 
     @property
-    def is_recording(self) -> bool:
+    is_recording(self) -> bool:
         with self._lock:
             return self._state.is_recording
 
     @property
-    def uses_audio(self) -> bool:
+    uses_audio(self) -> bool:
         with self._lock:
             return self._state.uses_audio
 
     @property
-    def backend(self) -> str:
+    backend(self) -> str:
         with self._lock:
             return self._state.backend
+
+    @property
+    last_error(self) -> str:
+        return self._last_error
 
     def elapsed_seconds(self) -> float:
         with self._lock:
@@ -60,15 +100,23 @@ class ScreenRecorder:
             if self._state.is_recording:
                 return False, "正在录制中"
 
+        self._last_error = ""
         temp_path = temp_path.with_suffix(".mp4")
         temp_path.parent.mkdir(parents=True, exist_ok=True)
+        if temp_path.exists():
+            temp_path.unlink()
 
         if shutil.which("ffmpeg"):
-            ok, msg = self._start_ffmpeg(temp_path)
-            if ok:
-                return True, msg
+            for attempt in self._ffmpeg_attempts(temp_path):
+                ok, err = self._try_start_ffmpeg(attempt, temp_path)
+                if ok:
+                    return True, attempt.note
+                if err:
+                    self._last_error = err
 
         ok, msg = self._start_fallback(temp_path)
+        if self._last_error:
+            msg = f"{msg}（ffmpeg：{self._last_error}）"
         return ok, msg
 
     def stop(self) -> Path | None:
@@ -89,33 +137,53 @@ class ScreenRecorder:
         return path
 
     # ------------------------------------------------------------------ ffmpeg
-    def _start_ffmpeg(self, temp_path: Path) -> tuple[bool, str]:
+    def _ffmpeg_attempts(self, temp_path: Path) -> list[FfmpegAttempt]:
         system = platform.system()
         if system == "Darwin":
-            cmd, uses_audio, note = self._ffmpeg_cmd_macos(temp_path)
-        elif system == "Windows":
-            cmd, uses_audio, note = self._ffmpeg_cmd_windows(temp_path)
-        else:
-            cmd, uses_audio, note = self._ffmpeg_cmd_linux(temp_path)
+            return [self._attempt_macos(temp_path)]
+        if system == "Windows":
+            return self._attempts_windows(temp_path)
+        return [self._attempt_linux(temp_path)]
 
+    def _try_start_ffmpeg(self, attempt: FfmpegAttempt, temp_path: Path) -> tuple[bool, str]:
+        stderr_path = Path(tempfile.gettempdir()) / f"screen_rec_ff_{os.getpid()}_{time.time_ns()}.log"
+        stderr_handle = open(stderr_path, "w", encoding="utf-8", errors="replace")
+        proc: subprocess.Popen[bytes] | None = None
         try:
             proc = subprocess.Popen(
-                cmd,
+                attempt.cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=stderr_handle,
+                **_subprocess_popen_kwargs(),
             )
         except OSError as exc:
+            stderr_handle.close()
+            stderr_path.unlink(missing_ok=True)
             return False, f"启动 ffmpeg 失败：{exc}"
+        finally:
+            try:
+                stderr_handle.close()
+            except OSError:
+                pass
 
+        time.sleep(_STARTUP_WAIT_SEC)
+        if proc.poll() is not None:
+            err_text = stderr_path.read_text(encoding="utf-8", errors="replace")
+            stderr_path.unlink(missing_ok=True)
+            if temp_path.exists() and temp_path.stat().st_size == 0:
+                temp_path.unlink(missing_ok=True)
+            return False, _summarize_ffmpeg_error(err_text)
+
+        stderr_path.unlink(missing_ok=True)
         with self._lock:
             self._ffmpeg_proc = proc
             self._state.is_recording = True
             self._state.started_at = time.time()
             self._state.temp_path = temp_path
-            self._state.uses_audio = uses_audio
+            self._state.uses_audio = attempt.uses_audio
             self._state.backend = "ffmpeg"
-        return True, note
+        return True, ""
 
     def _stop_ffmpeg(self) -> None:
         proc = self._ffmpeg_proc
@@ -123,15 +191,30 @@ class ScreenRecorder:
         if proc is None:
             return
         try:
-            if proc.stdin:
-                proc.stdin.write(b"q")
-                proc.stdin.flush()
-            proc.wait(timeout=8)
+            if proc.poll() is None:
+                try:
+                    if proc.stdin:
+                        proc.stdin.write(b"q")
+                        proc.stdin.flush()
+                        proc.stdin.close()
+                except OSError:
+                    pass
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        proc.wait(timeout=3)
         except Exception:
-            proc.kill()
-            proc.wait(timeout=3)
+            try:
+                proc.kill()
+            except OSError:
+                pass
 
-    def _ffmpeg_cmd_macos(self, path: Path) -> tuple[list[str], bool, str]:
+    def _attempt_macos(self, path: Path) -> FfmpegAttempt:
         screen_idx = self._macos_screen_index()
         audio_idx = self._macos_audio_index()
         uses_audio = audio_idx is not None
@@ -141,7 +224,7 @@ class ScreenRecorder:
             "-y",
             "-hide_banner",
             "-loglevel",
-            "error",
+            "warning",
             "-f",
             "avfoundation",
             "-framerate",
@@ -168,36 +251,94 @@ class ScreenRecorder:
         elif uses_audio:
             note = "录制中（画面 + 音频）"
         else:
-            note = (
-                "录制中（仅画面）。要录制系统声音，请安装 BlackHole 并设为系统输出，"
-                "详见 README。"
-            )
-        return cmd, uses_audio, note
+            note = "录制中（仅画面，未检测到可用音频设备）"
+        return FfmpegAttempt(cmd, uses_audio, note)
 
-    def _ffmpeg_cmd_windows(self, path: Path) -> tuple[list[str], bool, str]:
-        audio_name = self._windows_loopback_device()
-        uses_audio = audio_name is not None
+    def _attempts_windows(self, path: Path) -> list[FfmpegAttempt]:
+        attempts: list[FfmpegAttempt] = []
+        for audio_type, audio_name in self._windows_audio_devices():
+            if audio_type == "wasapi":
+                label = "WASAPI 环回"
+            else:
+                label = audio_name
+            attempts.append(
+                FfmpegAttempt(
+                    self._ffmpeg_cmd_windows(path, audio_type, audio_name, "libx264"),
+                    True,
+                    f"录制中（画面 + 系统音频：{label}）",
+                )
+            )
+        attempts.append(
+            FfmpegAttempt(
+                self._ffmpeg_cmd_windows(path, None, None, "libx264"),
+                False,
+                "录制中（仅画面）",
+            )
+        )
+        attempts.append(
+            FfmpegAttempt(
+                self._ffmpeg_cmd_windows(path, None, None, "h264_mf"),
+                False,
+                "录制中（仅画面，兼容模式）",
+            )
+        )
+        return attempts
+
+    def _ffmpeg_cmd_windows(
+        self,
+        path: Path,
+        audio_type: str | None,
+        audio_name: str | None,
+        video_encoder: str,
+    ) -> list[str]:
         cmd = [
             "ffmpeg",
             "-y",
             "-hide_banner",
             "-loglevel",
-            "error",
+            "warning",
+            "-thread_queue_size",
+            "512",
             "-f",
             "gdigrab",
-            "-framerate",
-            "30",
             "-draw_mouse",
             "1",
+            "-framerate",
+            "30",
             "-i",
             "desktop",
         ]
-        if uses_audio:
+        if audio_type == "wasapi" and audio_name:
             cmd += [
+                "-thread_queue_size",
+                "512",
+                "-f",
+                "wasapi",
+                "-loopback",
+                "1",
+                "-i",
+                audio_name,
+                "-map",
+                "0:v:0",
+                "-map",
+                "1:a:0",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+            ]
+        elif audio_type == "dshow" and audio_name:
+            cmd += [
+                "-thread_queue_size",
+                "512",
                 "-f",
                 "dshow",
                 "-i",
                 f"audio={audio_name}",
+                "-map",
+                "0:v:0",
+                "-map",
+                "1:a:0",
                 "-c:a",
                 "aac",
                 "-b:a",
@@ -207,17 +348,14 @@ class ScreenRecorder:
             "-pix_fmt",
             "yuv420p",
             "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "23",
-            str(path),
+            video_encoder,
         ]
-        note = "录制中（画面 + 系统音频）" if uses_audio else "录制中（仅画面，未找到环回音频设备）"
-        return cmd, uses_audio, note
+        if video_encoder == "libx264":
+            cmd += ["-preset", "veryfast", "-crf", "23"]
+        cmd.append(str(path))
+        return cmd
 
-    def _ffmpeg_cmd_linux(self, path: Path) -> tuple[list[str], bool, str]:
+    def _attempt_linux(self, path: Path) -> FfmpegAttempt:
         display = ":0.0"
         audio = "default"
         cmd = [
@@ -225,7 +363,7 @@ class ScreenRecorder:
             "-y",
             "-hide_banner",
             "-loglevel",
-            "error",
+            "warning",
             "-f",
             "x11grab",
             "-framerate",
@@ -236,6 +374,10 @@ class ScreenRecorder:
             "pulse",
             "-i",
             audio,
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
             "-pix_fmt",
             "yuv420p",
             "-c:v",
@@ -250,37 +392,79 @@ class ScreenRecorder:
             "192k",
             str(path),
         ]
-        return cmd, True, "录制中（画面 + 音频）"
+        return FfmpegAttempt(cmd, True, "录制中（画面 + 音频）")
 
-    def _macos_screen_index(self) -> str:
+    def _run_ffmpeg_list(self, args: list[str]) -> str:
         try:
             result = subprocess.run(
-                ["ffmpeg", "-f", "avfoundation", "-list_devices", "true", "-i", ""],
+                ["ffmpeg", "-hide_banner", *args],
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=15,
+                **_subprocess_run_kwargs(),
             )
         except (OSError, subprocess.TimeoutExpired):
-            return "1"
+            return ""
+        return result.stderr
 
-        for line in result.stderr.splitlines():
+    def _windows_audio_devices(self) -> list[tuple[str, str]]:
+        devices: list[tuple[str, str]] = []
+        seen: set[str] = set()
+
+        wasapi_text = self._run_ffmpeg_list(["-list_devices", "true", "-f", "wasapi", "-i", "dummy"])
+        for line in wasapi_text.splitlines():
+            if "(loopback)" not in line.lower():
+                continue
+            match = re.search(r'"([^"]+)"', line)
+            if match:
+                name = match.group(1)
+                if name not in seen:
+                    seen.add(name)
+                    devices.append(("wasapi", name))
+
+        if not devices:
+            in_section = False
+            for line in wasapi_text.splitlines():
+                if "wasapi" in line.lower() and "devices" in line.lower():
+                    in_section = True
+                    continue
+                if in_section and "(audio)" in line.lower():
+                    match = re.search(r'"([^"]+)"', line)
+                    if not match:
+                        continue
+                    name = match.group(1)
+                    lower = name.lower()
+                    if any(k in lower for k in ("microphone", "mic", "麦克风", "input")):
+                        continue
+                    if name not in seen:
+                        seen.add(name)
+                        devices.append(("wasapi", name))
+
+        dshow_text = self._run_ffmpeg_list(["-list_devices", "true", "-f", "dshow", "-i", "dummy"])
+        for line in dshow_text.splitlines():
+            if "(audio)" not in line:
+                continue
+            match = re.search(r'"([^"]+)"\s+\(audio\)', line)
+            if not match:
+                continue
+            name = match.group(1)
+            lower = name.lower()
+            if any(k in lower for k in ("stereo mix", "wave out mix", "what u hear", "立体声混音", "混音")):
+                if name not in seen:
+                    seen.add(name)
+                    devices.append(("dshow", name))
+        return devices
+
+    def _macos_screen_index(self) -> str:
+        text = self._run_ffmpeg_list(["-f", "avfoundation", "-list_devices", "true", "-i", ""])
+        for line in text.splitlines():
             match = re.search(r"\[(\d+)\]\s+Capture screen", line)
             if match:
                 return match.group(1)
         return "1"
 
     def _macos_audio_index(self) -> str | None:
-        try:
-            result = subprocess.run(
-                ["ffmpeg", "-f", "avfoundation", "-list_devices", "true", "-i", ""],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            return None
-
-        text = result.stderr
+        text = self._run_ffmpeg_list(["-f", "avfoundation", "-list_devices", "true", "-i", ""])
         in_audio = False
         devices: list[tuple[str, str]] = []
         for line in text.splitlines():
@@ -318,39 +502,8 @@ class ScreenRecorder:
     def _is_blackhole_audio(self, audio_idx: str | None) -> bool:
         if audio_idx is None:
             return False
-        try:
-            result = subprocess.run(
-                ["ffmpeg", "-f", "avfoundation", "-list_devices", "true", "-i", ""],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            return False
-        return f"[{audio_idx}]" in result.stderr and "BlackHole" in result.stderr
-
-    def _windows_loopback_device(self) -> str | None:
-        try:
-            result = subprocess.run(
-                ["ffmpeg", "-list_devices", "true", "-f", "dshow", "-i", "dummy"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            return None
-
-        for line in result.stderr.splitlines():
-            if "(audio)" not in line:
-                continue
-            match = re.search(r'"(.+?)"\s+\(audio\)', line)
-            if not match:
-                continue
-            name = match.group(1)
-            lower = name.lower()
-            if "stereo mix" in lower or "立体声混音" in name:
-                return name
-        return None
+        text = self._run_ffmpeg_list(["-f", "avfoundation", "-list_devices", "true", "-i", ""])
+        return f"[{audio_idx}]" in text and "BlackHole" in text
 
     # ---------------------------------------------------------------- fallback
     def _start_fallback(self, temp_path: Path) -> tuple[bool, str]:
@@ -368,7 +521,7 @@ class ScreenRecorder:
             self._state.uses_audio = False
             self._state.backend = "mss"
         thread.start()
-        return True, "录制中（仅画面，未安装 ffmpeg）"
+        return True, "录制中（仅画面，ffmpeg 不可用或启动失败，已改用内置录制）"
 
     def _stop_fallback(self) -> None:
         self._fallback_stop.set()

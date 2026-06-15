@@ -44,12 +44,15 @@ jobs:
           $exe = "dist\ScreenCapture\ScreenCapture.exe"
           $portable = "installer\output\ScreenCapture-Portable.zip"
           $setup = "installer\output\ScreenCaptureSetup.exe"
+          $uninstall = "installer\output\ScreenCaptureUninstall.exe"
           if (-not (Test-Path $exe)) { throw "Missing $exe" }
           if (-not (Test-Path $portable)) { throw "Missing $portable" }
           if (-not (Test-Path $setup)) { throw "Missing $setup" }
+          if (-not (Test-Path $uninstall)) { throw "Missing $uninstall" }
           Write-Host "OK: $exe"
           Write-Host "OK: $portable"
           Write-Host "OK: $setup"
+          Write-Host "OK: $uninstall"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -58,6 +61,7 @@ jobs:
           path: |
             screen-capture-tool/installer/output/ScreenCapture-Portable.zip
             screen-capture-tool/installer/output/ScreenCaptureSetup.exe
+            screen-capture-tool/installer/output/ScreenCaptureUninstall.exe
           if-no-files-found: error
 
       - name: Create GitHub Release on tag
@@ -67,4 +71,5 @@ jobs:
           files: |
             screen-capture-tool/installer/output/ScreenCapture-Portable.zip
             screen-capture-tool/installer/output/ScreenCaptureSetup.exe
+            screen-capture-tool/installer/output/ScreenCaptureUninstall.exe
           generate_release_notes: true

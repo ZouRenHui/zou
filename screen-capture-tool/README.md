@@ -27,6 +27,7 @@ GitHub Actions 会在推送后自动构建 Windows 版本，在仓库 **Actions*
 
 - **ScreenCapture-Portable.zip** — 解压即用，双击 `ScreenCapture.exe`
 - **ScreenCaptureSetup.exe** — 安装版，带开始菜单快捷方式
+- **ScreenCaptureUninstall.exe** — 卸载旧版本（升级前运行）
 
 本地构建见 [BUILD-WINDOWS.md](BUILD-WINDOWS.md)。
 

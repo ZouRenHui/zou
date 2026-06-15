@@ -193,8 +193,22 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $SetupExe = Join-Path $InstallerOut "ScreenCaptureSetup.exe"
+$UninstallExe = Join-Path $InstallerOut "ScreenCaptureUninstall.exe"
 if (-not (Test-Path $SetupExe)) {
     Write-Host "[错误] 未生成安装包: $SetupExe"
+    exit 1
+}
+
+Write-Host ""
+Write-Host "正在编译卸载程序..."
+$UninstallIss = Join-Path $ProjectRoot "installer\uninstall.iss"
+& $Iscc $UninstallIss
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[错误] 卸载程序编译失败，退出码: $LASTEXITCODE"
+    exit 1
+}
+if (-not (Test-Path $UninstallExe)) {
+    Write-Host "[错误] 未生成卸载程序: $UninstallExe"
     exit 1
 }
 
@@ -205,3 +219,4 @@ Write-Host "========================================"
 Write-Host "程序:       $MainExe"
 Write-Host "免安装包:   $PortableZip"
 Write-Host "安装包:     $SetupExe"
+Write-Host "卸载程序:   $UninstallExe"

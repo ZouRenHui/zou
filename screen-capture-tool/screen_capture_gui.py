@@ -157,7 +157,12 @@ class ScreenCaptureApp:
 
         if temp_path is None or not temp_path.exists() or temp_path.stat().st_size == 0:
             self.record_status.set("录制失败或文件为空")
-            messagebox.showerror("录屏", "未能生成录制文件。", parent=self.root)
+            detail = self.recorder.last_error
+            msg = "未能生成录制文件。"
+            if detail:
+                msg += f"\n\nffmpeg 错误：{detail}"
+            msg += "\n\n建议：\n1. 确认 ffmpeg 在 PATH 中（ffmpeg -version）\n2. 若仅需画面，程序会自动回退到内置录制\n3. 录制系统声音需在 Windows 声音设置中启用「立体声混音」"
+            messagebox.showerror("录屏", msg, parent=self.root)
             return
 
         default_name = f"录屏_{datetime.now():%Y%m%d_%H%M%S}.mp4"
