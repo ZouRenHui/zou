@@ -56,14 +56,20 @@ def _copy_windows_powershell(image: Image.Image) -> None:
         path = Path(tmp.name)
     try:
         image.save(path, "PNG")
+        # Escape single quotes in path (PS single-quoted string escaping)
+        path_ps = str(path).replace("'", "''")
+        # Use ReadAllBytes+MemoryStream to avoid Image.FromFile locking the file
         ps = (
             "Add-Type -AssemblyName System.Windows.Forms; "
-            f"$img = [System.Drawing.Image]::FromFile('{path}'); "
+            "Add-Type -AssemblyName System.Drawing; "
+            f"$bytes = [System.IO.File]::ReadAllBytes('{path_ps}'); "
+            "$ms = New-Object System.IO.MemoryStream(,$bytes); "
+            "$img = [System.Drawing.Image]::FromStream($ms); "
             "[System.Windows.Forms.Clipboard]::SetImage($img); "
-            "$img.Dispose()"
+            "$img.Dispose(); $ms.Dispose()"
         )
         subprocess.run(
-            ["powershell", "-NoProfile", "-Command", ps],
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
             check=True,
             capture_output=True,
         )

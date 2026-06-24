@@ -352,6 +352,8 @@ class ScreenRecorder:
         ]
         if video_encoder == "libx264":
             cmd += ["-preset", "veryfast", "-crf", "23"]
+        elif video_encoder == "h264_mf":
+            cmd += ["-b:v", "4M"]
         cmd.append(str(path))
         return cmd
 
@@ -412,8 +414,10 @@ class ScreenRecorder:
         seen: set[str] = set()
 
         wasapi_text = self._run_ffmpeg_list(["-list_devices", "true", "-f", "wasapi", "-i", "dummy"])
+
+        # First pass: find loopback devices (handles "(loopback)" and "Loopback device N" formats)
         for line in wasapi_text.splitlines():
-            if "(loopback)" not in line.lower():
+            if "loopback" not in line.lower():
                 continue
             match = re.search(r'"([^"]+)"', line)
             if match:
@@ -423,22 +427,27 @@ class ScreenRecorder:
                     devices.append(("wasapi", name))
 
         if not devices:
+            # Fallback: pick non-microphone playback/output devices from WASAPI listing
             in_section = False
             for line in wasapi_text.splitlines():
-                if "wasapi" in line.lower() and "devices" in line.lower():
+                lower = line.lower()
+                if "wasapi" in lower and ("devices" in lower or "device" in lower):
                     in_section = True
                     continue
-                if in_section and "(audio)" in line.lower():
-                    match = re.search(r'"([^"]+)"', line)
-                    if not match:
-                        continue
-                    name = match.group(1)
-                    lower = name.lower()
-                    if any(k in lower for k in ("microphone", "mic", "麦克风", "input")):
-                        continue
-                    if name not in seen:
-                        seen.add(name)
-                        devices.append(("wasapi", name))
+                if not in_section:
+                    continue
+                # Skip capture/microphone/input device lines
+                if any(k in lower for k in ("capture", "microphone", "mic", "麦克风", "input")):
+                    continue
+                match = re.search(r'"([^"]+)"', line)
+                if not match:
+                    continue
+                name = match.group(1)
+                if any(k in name.lower() for k in ("microphone", "mic", "麦克风", "input")):
+                    continue
+                if name not in seen:
+                    seen.add(name)
+                    devices.append(("wasapi", name))
 
         dshow_text = self._run_ffmpeg_list(["-list_devices", "true", "-f", "dshow", "-i", "dummy"])
         for line in dshow_text.splitlines():
