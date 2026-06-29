@@ -10,15 +10,21 @@ from pathlib import Path
 
 from PIL import Image
 
+from app_log import get_logger
+
+_log = get_logger("clipboard")
+
 
 def copy_image_to_clipboard(image: Image.Image) -> None:
     system = platform.system()
+    _log.info("复制图片到剪贴板 — 系统: %s, 尺寸: %dx%d", system, image.width, image.height)
     if system == "Darwin":
         _copy_macos(image)
     elif system == "Windows":
         _copy_windows(image)
     else:
         _copy_linux(image)
+    _log.info("剪贴板写入成功")
 
 
 def _copy_macos(image: Image.Image) -> None:
@@ -35,7 +41,9 @@ def _copy_macos(image: Image.Image) -> None:
 def _copy_windows(image: Image.Image) -> None:
     try:
         import win32clipboard  # type: ignore[import-untyped]
+        _log.debug("剪贴板方式: win32clipboard")
     except ImportError:
+        _log.debug("win32clipboard 不可用，使用 PowerShell 方式")
         _copy_windows_powershell(image)
         return
 

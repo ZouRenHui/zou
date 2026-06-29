@@ -14,10 +14,14 @@ from tkinter import filedialog, messagebox, ttk
 
 from PIL import Image, ImageTk
 
+import app_log
+from app_log import get_logger
 from clipboard_utils import copy_image_to_clipboard
 from record_button import RecordButton
 from recorder import ScreenRecorder
 from screenshot import RegionSelector, capture_full_screen, capture_region
+
+_log = get_logger("gui")
 
 
 class ScreenCaptureApp:
@@ -40,6 +44,8 @@ class ScreenCaptureApp:
 
         self._build_ui()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+        _log.info("应用启动 — 系统: %s, Python: %s",
+                  platform.system(), __import__("sys").version.split()[0])
 
     def _schedule(self, delay_ms: int, callback) -> str | None:
         """在主窗口上安全调度 after 回调。"""
@@ -64,6 +70,30 @@ class ScreenCaptureApp:
 
         self._build_record_tab(record_tab)
         self._build_shot_tab(shot_tab)
+        self._build_statusbar()
+
+    def _build_statusbar(self) -> None:
+        bar = ttk.Frame(self.root)
+        bar.pack(fill=tk.X, padx=10, pady=(0, 6))
+        log_path = app_log.get_log_path()
+        ttk.Button(
+            bar,
+            text="查看日志",
+            command=self._open_log,
+            width=10,
+        ).pack(side=tk.RIGHT)
+        ttk.Label(
+            bar,
+            text=f"日志: {log_path}",
+            foreground="#999",
+            font=("", 8),
+        ).pack(side=tk.LEFT, padx=(2, 0))
+
+    def _open_log(self) -> None:
+        try:
+            app_log.open_log_file()
+        except RuntimeError as exc:
+            messagebox.showerror("日志", str(exc), parent=self.root)
 
     def _build_record_tab(self, parent: ttk.Frame) -> None:
         pad = {"padx": 12, "pady": 8}
@@ -130,11 +160,23 @@ class ScreenCaptureApp:
 
     def _start_recording(self) -> None:
         temp = Path(tempfile.gettempdir()) / f"screen_rec_{datetime.now():%Y%m%d_%H%M%S}.mp4"
-        ok, msg = self.recorder.start(temp)
+        self.record_btn.set_enabled(False)
+        self.record_status.set("正在启动录制…")
+
+        def worker() -> None:
+            ok, msg = self.recorder.start(temp)
+            self._schedule(0, lambda: self._on_recording_started(ok, msg))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_recording_started(self, ok: bool, msg: str) -> None:
+        self.record_btn.set_enabled(True)
         if not ok:
+            _log.error("录制启动失败: %s", msg)
+            self.record_status.set("就绪")
             messagebox.showerror("录屏", msg, parent=self.root)
             return
-
+        _log.info("录制启动成功: %s", msg)
         self.record_btn.set_recording(True)
         self.record_status.set(msg)
         self._start_timer()
@@ -158,6 +200,7 @@ class ScreenCaptureApp:
         if temp_path is None or not temp_path.exists() or temp_path.stat().st_size == 0:
             self.record_status.set("录制失败或文件为空")
             detail = self.recorder.last_error
+            _log.error("录制文件无效 — 路径: %s, 错误: %s", temp_path, detail)
             msg = "未能生成录制文件。"
             if detail:
                 msg += f"\n\nffmpeg 错误：{detail}"
@@ -181,9 +224,11 @@ class ScreenCaptureApp:
             dest = Path(save_path)
             dest.write_bytes(temp_path.read_bytes())
             temp_path.unlink(missing_ok=True)
+            _log.info("录制文件已保存: %s (%d KB)", dest, dest.stat().st_size // 1024)
             self.record_status.set(f"已保存：{dest.name}")
             messagebox.showinfo("录屏", f"已保存到\n{dest}", parent=self.root)
         except OSError as exc:
+            _log.error("录制文件保存失败: %s", exc)
             self.record_status.set("保存失败")
             messagebox.showerror("录屏", f"保存失败：{exc}", parent=self.root)
 
@@ -255,7 +300,19 @@ class ScreenCaptureApp:
         self.root.deiconify()
         self._show_capture_result(image)
 
+    def _show_capture_result(self, image: Image.Image) -> None:
+        self._last_image = image
+        self._update_preview(image)
+        try:
+            copy_image_to_clipboard(image)
+            self.shot_status.set("已复制到剪贴板，可直接粘贴")
+        except Exception as exc:
+            _log.warning("截图成功但复制剪贴板失败: %s", exc)
+            self.shot_status.set("复制到剪贴板失败")
+            messagebox.showwarning("截屏", f"截图成功，但复制失败：{exc}", parent=self.root)
+
     def _show_capture_error(self, exc: Exception) -> None:
+        _log.error("截屏失败: %s", exc)
         msg = str(exc)
         if platform.system() == "Darwin" and messagebox.askyesno(
             "截屏失败",
@@ -271,16 +328,6 @@ class ScreenCaptureApp:
             )
         else:
             messagebox.showerror("截屏", msg, parent=self.root)
-
-    def _show_capture_result(self, image: Image.Image) -> None:
-        self._last_image = image
-        self._update_preview(image)
-        try:
-            copy_image_to_clipboard(image)
-            self.shot_status.set("已复制到剪贴板，可直接粘贴")
-        except Exception as exc:
-            self.shot_status.set("复制到剪贴板失败")
-            messagebox.showwarning("截屏", f"截图成功，但复制失败：{exc}", parent=self.root)
 
     def _update_preview(self, image: Image.Image) -> None:
         max_w, max_h = 560, 280

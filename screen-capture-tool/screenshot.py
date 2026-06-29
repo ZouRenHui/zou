@@ -13,6 +13,9 @@ from pathlib import Path
 import mss
 from PIL import Image
 
+from app_log import get_logger
+
+_log = get_logger("screenshot")
 _IS_MACOS = platform.system() == "Darwin"
 
 
@@ -59,19 +62,31 @@ def _virtual_screen_bounds(root: tk.Misc | None = None) -> tuple[int, int, int, 
 
 
 def capture_full_screen() -> Image.Image:
+    _log.info("全屏截屏 — 方式: %s", "screencapture" if _IS_MACOS else "mss")
     if _IS_MACOS:
-        return _capture_full_screen_macos()
+        img = _capture_full_screen_macos()
+        _log.info("全屏截屏完成: %dx%d", img.width, img.height)
+        return img
     with mss.mss() as sct:
         shot = sct.grab(sct.monitors[0])
-        return Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
+        img = Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
+        _log.info("全屏截屏完成: %dx%d", img.width, img.height)
+        return img
 
 
 def capture_region(region: CaptureRegion) -> Image.Image:
+    _log.info("区域截屏 — 区域: left=%d top=%d %dx%d, 方式: %s",
+              region.left, region.top, region.width, region.height,
+              "screencapture" if _IS_MACOS else "mss")
     if _IS_MACOS:
-        return _capture_region_macos(region)
+        img = _capture_region_macos(region)
+        _log.info("区域截屏完成: %dx%d", img.width, img.height)
+        return img
     with mss.mss() as sct:
         shot = sct.grab(region.as_mss_dict())
-        return Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
+        img = Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
+        _log.info("区域截屏完成: %dx%d", img.width, img.height)
+        return img
 
 
 def _capture_full_screen_macos() -> Image.Image:

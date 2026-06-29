@@ -17,6 +17,9 @@ import cv2
 import mss
 import numpy as np
 
+from app_log import get_logger
+
+_log = get_logger("recorder")
 _STARTUP_WAIT_SEC = 1.2
 
 
@@ -106,13 +109,22 @@ class ScreenRecorder:
         if temp_path.exists():
             temp_path.unlink()
 
+        _log.info("start() 调用 — 系统: %s, 临时文件: %s", platform.system(), temp_path)
+
         if shutil.which("ffmpeg"):
+            _log.info("ffmpeg 可用: %s", shutil.which("ffmpeg"))
             for attempt in self._ffmpeg_attempts(temp_path):
+                _log.debug("尝试 ffmpeg 方案: %s", attempt.note)
+                _log.debug("ffmpeg 命令: %s", " ".join(attempt.cmd))
                 ok, err = self._try_start_ffmpeg(attempt, temp_path)
                 if ok:
+                    _log.info("ffmpeg 启动成功: %s", attempt.note)
                     return True, attempt.note
+                _log.warning("ffmpeg 方案失败: %s — %s", attempt.note, err)
                 if err:
                     self._last_error = err
+        else:
+            _log.warning("ffmpeg 不在 PATH 中，直接使用内置录制")
 
         ok, msg = self._start_fallback(temp_path)
         if self._last_error:
@@ -125,6 +137,9 @@ class ScreenRecorder:
             if not self._state.is_recording:
                 return None
             path = self._state.temp_path
+            elapsed = time.time() - (self._state.started_at or time.time())
+
+        _log.info("stop() 调用 — 后端: %s, 已录制: %.1f 秒", self._state.backend, elapsed)
 
         if self._ffmpeg_proc is not None:
             self._stop_ffmpeg()
@@ -134,6 +149,12 @@ class ScreenRecorder:
         with self._lock:
             self._state.is_recording = False
             self._state.started_at = None
+
+        if path and path.exists():
+            size_kb = path.stat().st_size // 1024
+            _log.info("录制完成 — 文件: %s, 大小: %d KB", path.name, size_kb)
+        else:
+            _log.warning("录制停止但文件不存在或为空: %s", path)
         return path
 
     # ------------------------------------------------------------------ ffmpeg
@@ -173,7 +194,9 @@ class ScreenRecorder:
             stderr_path.unlink(missing_ok=True)
             if temp_path.exists() and temp_path.stat().st_size == 0:
                 temp_path.unlink(missing_ok=True)
-            return False, _summarize_ffmpeg_error(err_text)
+            summary = _summarize_ffmpeg_error(err_text)
+            _log.debug("ffmpeg stderr (全文):\n%s", err_text.strip())
+            return False, summary
 
         stderr_path.unlink(missing_ok=True)
         with self._lock:
@@ -413,7 +436,9 @@ class ScreenRecorder:
         devices: list[tuple[str, str]] = []
         seen: set[str] = set()
 
+        _log.debug("枚举 WASAPI 设备…")
         wasapi_text = self._run_ffmpeg_list(["-list_devices", "true", "-f", "wasapi", "-i", "dummy"])
+        _log.debug("WASAPI 设备列表原文:\n%s", wasapi_text.strip())
 
         # First pass: find loopback devices (handles "(loopback)" and "Loopback device N" formats)
         for line in wasapi_text.splitlines():
@@ -425,8 +450,10 @@ class ScreenRecorder:
                 if name not in seen:
                     seen.add(name)
                     devices.append(("wasapi", name))
+                    _log.info("找到 WASAPI 环回设备: %s", name)
 
         if not devices:
+            _log.debug("未找到 WASAPI 环回设备，尝试从输出设备列表中筛选")
             # Fallback: pick non-microphone playback/output devices from WASAPI listing
             in_section = False
             for line in wasapi_text.splitlines():
@@ -448,8 +475,11 @@ class ScreenRecorder:
                 if name not in seen:
                     seen.add(name)
                     devices.append(("wasapi", name))
+                    _log.info("使用 WASAPI 输出设备: %s", name)
 
+        _log.debug("枚举 dshow 设备…")
         dshow_text = self._run_ffmpeg_list(["-list_devices", "true", "-f", "dshow", "-i", "dummy"])
+        _log.debug("dshow 设备列表原文:\n%s", dshow_text.strip())
         for line in dshow_text.splitlines():
             if "(audio)" not in line:
                 continue
@@ -462,6 +492,10 @@ class ScreenRecorder:
                 if name not in seen:
                     seen.add(name)
                     devices.append(("dshow", name))
+                    _log.info("找到 dshow 立体声混音设备: %s", name)
+
+        if not devices:
+            _log.warning("未找到任何可用系统音频设备，将仅录制画面")
         return devices
 
     def _macos_screen_index(self) -> str:
@@ -516,6 +550,7 @@ class ScreenRecorder:
 
     # ---------------------------------------------------------------- fallback
     def _start_fallback(self, temp_path: Path) -> tuple[bool, str]:
+        _log.info("回退到 mss+OpenCV 内置录制（仅画面）")
         self._fallback_stop.clear()
         thread = threading.Thread(
             target=self._fallback_loop,
@@ -544,9 +579,11 @@ class ScreenRecorder:
         with mss.mss() as sct:
             mon = sct.monitors[0]
             width, height = mon["width"], mon["height"]
+            _log.debug("mss 录制分辨率: %dx%d, fps: %.0f", width, height, fps)
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             writer = cv2.VideoWriter(str(temp_path), fourcc, fps, (width, height))
             if not writer.isOpened():
+                _log.error("VideoWriter 无法打开，内置录制启动失败: %s", temp_path)
                 with self._lock:
                     self._state.is_recording = False
                 return
