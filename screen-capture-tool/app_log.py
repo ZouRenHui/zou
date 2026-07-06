@@ -19,6 +19,7 @@ _APP_NAME = "screen-capture-tool"
 _MAX_BYTES = 5 * 1024 * 1024  # 5 MB per file
 _BACKUP_COUNT = 3
 _hooks_installed = False
+_session_header_written = False
 _original_excepthook = sys.excepthook
 _original_threading_excepthook = getattr(threading, "excepthook", None)
 
@@ -56,6 +57,7 @@ def get_crash_log_path() -> Path:
 
 
 def setup() -> None:
+    global _session_header_written
     root = logging.getLogger(_APP_NAME)
     if root.handlers:
         return
@@ -77,7 +79,9 @@ def setup() -> None:
     except OSError as exc:
         sys.stderr.write(f"[{_APP_NAME}] 无法创建日志文件: {exc}\n")
 
-    _write_session_header(root)
+    if not _session_header_written:
+        _write_session_header(root)
+        _session_header_written = True
 
 
 def _write_session_header(logger: logging.Logger) -> None:
@@ -177,12 +181,15 @@ def install_exception_hooks() -> None:
         threading.excepthook = _handle_thread_exception
 
 
-def _run_command(args: list[str], timeout: float = 10.0) -> str:
+def run_subprocess_text(
+    args: list[str],
+    *,
+    timeout: float = 15.0,
+) -> str:
+    """运行子进程并以 UTF-8 容错解码输出，避免 Windows GBK 解码崩溃。"""
     kwargs: dict = {
         "capture_output": True,
-        "text": True,
         "timeout": timeout,
-        "errors": "replace",
     }
     if platform.system() == "Windows":
         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
@@ -190,8 +197,17 @@ def _run_command(args: list[str], timeout: float = 10.0) -> str:
         result = subprocess.run(args, **kwargs)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return f"<执行失败: {exc}>"
-    output = (result.stdout or "") + (result.stderr or "")
-    return output.strip() or f"<退出码 {result.returncode}，无输出>"
+
+    chunks: list[str] = []
+    for raw in (result.stdout, result.stderr):
+        if raw:
+            chunks.append(raw.decode("utf-8", errors="replace"))
+    return "".join(chunks)
+
+
+def _run_command(args: list[str], timeout: float = 10.0) -> str:
+    output = run_subprocess_text(args, timeout=timeout)
+    return output.strip() or "<无输出>"
 
 
 def _windows_details(logger: logging.Logger) -> None:

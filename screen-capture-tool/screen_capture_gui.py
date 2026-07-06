@@ -176,7 +176,11 @@ class ScreenCaptureApp:
         self.record_status.set("正在启动录制…")
 
         def worker() -> None:
-            ok, msg = self.recorder.start(temp)
+            try:
+                ok, msg = self.recorder.start(temp)
+            except Exception as exc:
+                app_log.log_exception(_log, "录制启动异常", exc=exc)
+                ok, msg = False, f"录制启动异常：{exc}"
             self._schedule(0, lambda: self._on_recording_started(ok, msg))
 
         threading.Thread(target=worker, daemon=True).start()
@@ -199,7 +203,11 @@ class ScreenCaptureApp:
         self.record_status.set("正在保存…")
 
         def worker() -> None:
-            path = self.recorder.stop()
+            try:
+                path = self.recorder.stop()
+            except Exception as exc:
+                app_log.log_exception(_log, "录制停止异常", exc=exc)
+                path = None
             self._schedule(0, lambda: self._on_recording_stopped(path))
 
         threading.Thread(target=worker, daemon=True).start()

@@ -17,7 +17,7 @@ import cv2
 import mss
 import numpy as np
 
-from app_log import get_logger, log_exception
+from app_log import get_logger, log_exception, run_subprocess_text
 
 _log = get_logger("recorder")
 _STARTUP_WAIT_SEC = 1.2
@@ -426,62 +426,64 @@ class ScreenRecorder:
         return FfmpegAttempt(cmd, True, "录制中（画面 + 音频）")
 
     def _run_ffmpeg_list(self, args: list[str]) -> str:
-        try:
-            result = subprocess.run(
-                ["ffmpeg", "-hide_banner", *args],
-                capture_output=True,
-                text=True,
-                timeout=15,
-                **_subprocess_run_kwargs(),
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            return ""
-        return result.stderr
+        ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
+        return run_subprocess_text([ffmpeg, "-hide_banner", *args], timeout=15)
+
+    def _ffmpeg_supports_demuxer(self, name: str) -> bool:
+        text = self._run_ffmpeg_list(["-formats"])
+        for line in text.splitlines():
+            stripped = line.strip()
+            if not stripped.startswith("D"):
+                continue
+            parts = stripped.split()
+            if len(parts) >= 2 and parts[1] == name:
+                return True
+        return False
 
     def _windows_audio_devices(self) -> list[tuple[str, str]]:
         devices: list[tuple[str, str]] = []
         seen: set[str] = set()
 
-        _log.debug("枚举 WASAPI 设备…")
-        wasapi_text = self._run_ffmpeg_list(["-list_devices", "true", "-f", "wasapi", "-i", "dummy"])
-        _log.debug("WASAPI 设备列表原文:\n%s", wasapi_text.strip())
+        if self._ffmpeg_supports_demuxer("wasapi"):
+            _log.debug("枚举 WASAPI 设备…")
+            wasapi_text = self._run_ffmpeg_list(["-list_devices", "true", "-f", "wasapi", "-i", "dummy"])
+            _log.debug("WASAPI 设备列表原文:\n%s", wasapi_text.strip())
 
-        # First pass: find loopback devices (handles "(loopback)" and "Loopback device N" formats)
-        for line in wasapi_text.splitlines():
-            if "loopback" not in line.lower():
-                continue
-            match = re.search(r'"([^"]+)"', line)
-            if match:
-                name = match.group(1)
-                if name not in seen:
-                    seen.add(name)
-                    devices.append(("wasapi", name))
-                    _log.info("找到 WASAPI 环回设备: %s", name)
-
-        if not devices:
-            _log.debug("未找到 WASAPI 环回设备，尝试从输出设备列表中筛选")
-            # Fallback: pick non-microphone playback/output devices from WASAPI listing
-            in_section = False
             for line in wasapi_text.splitlines():
-                lower = line.lower()
-                if "wasapi" in lower and ("devices" in lower or "device" in lower):
-                    in_section = True
-                    continue
-                if not in_section:
-                    continue
-                # Skip capture/microphone/input device lines
-                if any(k in lower for k in ("capture", "microphone", "mic", "麦克风", "input")):
+                if "loopback" not in line.lower():
                     continue
                 match = re.search(r'"([^"]+)"', line)
-                if not match:
-                    continue
-                name = match.group(1)
-                if any(k in name.lower() for k in ("microphone", "mic", "麦克风", "input")):
-                    continue
-                if name not in seen:
-                    seen.add(name)
-                    devices.append(("wasapi", name))
-                    _log.info("使用 WASAPI 输出设备: %s", name)
+                if match:
+                    name = match.group(1)
+                    if name not in seen:
+                        seen.add(name)
+                        devices.append(("wasapi", name))
+                        _log.info("找到 WASAPI 环回设备: %s", name)
+
+            if not devices:
+                _log.debug("未找到 WASAPI 环回设备，尝试从输出设备列表中筛选")
+                in_section = False
+                for line in wasapi_text.splitlines():
+                    lower = line.lower()
+                    if "wasapi" in lower and ("devices" in lower or "device" in lower):
+                        in_section = True
+                        continue
+                    if not in_section:
+                        continue
+                    if any(k in lower for k in ("capture", "microphone", "mic", "麦克风", "input")):
+                        continue
+                    match = re.search(r'"([^"]+)"', line)
+                    if not match:
+                        continue
+                    name = match.group(1)
+                    if any(k in name.lower() for k in ("microphone", "mic", "麦克风", "input")):
+                        continue
+                    if name not in seen:
+                        seen.add(name)
+                        devices.append(("wasapi", name))
+                        _log.info("使用 WASAPI 输出设备: %s", name)
+        else:
+            _log.warning("当前 ffmpeg 不支持 WASAPI 输入，跳过 WASAPI 音频枚举")
 
         _log.debug("枚举 dshow 设备…")
         dshow_text = self._run_ffmpeg_list(["-list_devices", "true", "-f", "dshow", "-i", "dummy"])
