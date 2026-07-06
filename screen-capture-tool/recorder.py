@@ -17,7 +17,7 @@ import cv2
 import mss
 import numpy as np
 
-from app_log import get_logger
+from app_log import get_logger, log_exception
 
 _log = get_logger("recorder")
 _STARTUP_WAIT_SEC = 1.2
@@ -195,7 +195,12 @@ class ScreenRecorder:
             if temp_path.exists() and temp_path.stat().st_size == 0:
                 temp_path.unlink(missing_ok=True)
             summary = _summarize_ffmpeg_error(err_text)
-            _log.debug("ffmpeg stderr (全文):\n%s", err_text.strip())
+            _log.warning("ffmpeg 启动失败 — 方案: %s", attempt.note)
+            _log.warning("ffmpeg 命令: %s", " ".join(attempt.cmd))
+            if err_text.strip():
+                _log.warning("ffmpeg stderr (全文):\n%s", err_text.strip())
+            else:
+                _log.warning("ffmpeg 无 stderr 输出，退出码: %s", proc.returncode)
             return False, summary
 
         stderr_path.unlink(missing_ok=True)
@@ -231,7 +236,8 @@ class ScreenRecorder:
                     except subprocess.TimeoutExpired:
                         proc.kill()
                         proc.wait(timeout=3)
-        except Exception:
+        except Exception as exc:
+            log_exception(_log, "停止 ffmpeg 进程时出错", exc=exc)
             try:
                 proc.kill()
             except OSError:

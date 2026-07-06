@@ -78,6 +78,12 @@ class ScreenCaptureApp:
         log_path = app_log.get_log_path()
         ttk.Button(
             bar,
+            text="打开日志目录",
+            command=self._open_log_dir,
+            width=12,
+        ).pack(side=tk.RIGHT, padx=(4, 0))
+        ttk.Button(
+            bar,
             text="查看日志",
             command=self._open_log,
             width=10,
@@ -92,6 +98,12 @@ class ScreenCaptureApp:
     def _open_log(self) -> None:
         try:
             app_log.open_log_file()
+        except RuntimeError as exc:
+            messagebox.showerror("日志", str(exc), parent=self.root)
+
+    def _open_log_dir(self) -> None:
+        try:
+            app_log.open_log_dir()
         except RuntimeError as exc:
             messagebox.showerror("日志", str(exc), parent=self.root)
 
@@ -312,7 +324,7 @@ class ScreenCaptureApp:
             messagebox.showwarning("截屏", f"截图成功，但复制失败：{exc}", parent=self.root)
 
     def _show_capture_error(self, exc: Exception) -> None:
-        _log.error("截屏失败: %s", exc)
+        app_log.log_exception(_log, "截屏失败", exc=exc)
         msg = str(exc)
         if platform.system() == "Darwin" and messagebox.askyesno(
             "截屏失败",
@@ -386,9 +398,17 @@ class ScreenCaptureApp:
 
 
 def main() -> None:
-    root = tk.Tk()
-    ScreenCaptureApp(root)
-    root.mainloop()
+    app_log.setup()
+    app_log.install_exception_hooks()
+    app_log.log_environment(_log)
+    try:
+        root = tk.Tk()
+        ScreenCaptureApp(root)
+        root.mainloop()
+    except Exception:
+        app_log.log_exception(_log, "应用运行失败")
+        app_log.write_crash_report("应用运行失败")
+        raise
 
 
 if __name__ == "__main__":

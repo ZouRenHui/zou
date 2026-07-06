@@ -76,11 +76,26 @@ def _copy_windows_powershell(image: Image.Image) -> None:
             "[System.Windows.Forms.Clipboard]::SetImage($img); "
             "$img.Dispose(); $ms.Dispose()"
         )
-        subprocess.run(
+        result = subprocess.run(
             ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
             check=True,
             capture_output=True,
+            text=True,
+            errors="replace",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
+        if result.stderr:
+            _log.debug("PowerShell stderr: %s", result.stderr.strip())
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or b"").decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        stdout = (exc.stdout or b"").decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        _log.error(
+            "PowerShell 剪贴板写入失败 — exit=%s\nstdout: %s\nstderr: %s",
+            exc.returncode,
+            stdout.strip(),
+            stderr.strip(),
+        )
+        raise RuntimeError(f"PowerShell 剪贴板写入失败 (exit {exc.returncode}): {stderr.strip() or stdout.strip()}") from exc
     finally:
         path.unlink(missing_ok=True)
 

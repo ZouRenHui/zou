@@ -13,6 +13,7 @@ a = Analysis(
     binaries=[],
     datas=[],
     hiddenimports=[
+        "app_log",
         "clipboard_utils",
         "record_button",
         "recorder",
