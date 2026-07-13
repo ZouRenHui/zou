@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import platform
 import re
 import shutil
@@ -167,33 +166,23 @@ class ScreenRecorder:
         return [self._attempt_linux(temp_path)]
 
     def _try_start_ffmpeg(self, attempt: FfmpegAttempt, temp_path: Path) -> tuple[bool, str]:
-        stderr_path = Path(tempfile.gettempdir()) / f"screen_rec_ff_{os.getpid()}_{time.time_ns()}.log"
-        stderr_handle = open(stderr_path, "w", encoding="utf-8", errors="replace")
         proc: subprocess.Popen[bytes] | None = None
         try:
             proc = subprocess.Popen(
                 attempt.cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
-                stderr=stderr_handle,
+                stderr=subprocess.PIPE,
                 **_subprocess_popen_kwargs(),
             )
         except OSError as exc:
-            stderr_handle.close()
-            stderr_path.unlink(missing_ok=True)
             return False, f"启动 ffmpeg 失败：{exc}"
-        finally:
-            try:
-                stderr_handle.close()
-            except OSError:
-                pass
 
         time.sleep(_STARTUP_WAIT_SEC)
         if proc.poll() is not None:
-            err_text = stderr_path.read_text(encoding="utf-8", errors="replace")
-            stderr_path.unlink(missing_ok=True)
+            err_text = self._read_stderr(proc)
             if temp_path.exists() and temp_path.stat().st_size == 0:
-                temp_path.unlink(missing_ok=True)
+                self._safe_unlink(temp_path)
             summary = _summarize_ffmpeg_error(err_text)
             _log.warning("ffmpeg 启动失败 — 方案: %s", attempt.note)
             _log.warning("ffmpeg 命令: %s", " ".join(attempt.cmd))
@@ -203,7 +192,14 @@ class ScreenRecorder:
                 _log.warning("ffmpeg 无 stderr 输出，退出码: %s", proc.returncode)
             return False, summary
 
-        stderr_path.unlink(missing_ok=True)
+        if proc.stderr is not None:
+            threading.Thread(
+                target=self._drain_stderr,
+                args=(proc.stderr,),
+                daemon=True,
+                name="ffmpeg-stderr",
+            ).start()
+
         with self._lock:
             self._ffmpeg_proc = proc
             self._state.is_recording = True
@@ -212,6 +208,45 @@ class ScreenRecorder:
             self._state.uses_audio = attempt.uses_audio
             self._state.backend = "ffmpeg"
         return True, ""
+
+    @staticmethod
+    def _read_stderr(proc: subprocess.Popen[bytes]) -> str:
+        if proc.stderr is None:
+            return ""
+        try:
+            data = proc.stderr.read()
+        except OSError:
+            data = b""
+        finally:
+            try:
+                proc.stderr.close()
+            except OSError:
+                pass
+        return data.decode("utf-8", errors="replace")
+
+    @staticmethod
+    def _drain_stderr(pipe) -> None:
+        try:
+            while pipe.read(4096):
+                pass
+        except OSError:
+            pass
+        finally:
+            try:
+                pipe.close()
+            except OSError:
+                pass
+
+    @staticmethod
+    def _safe_unlink(path: Path) -> None:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as exc:
+            winerror = getattr(exc, "winerror", None)
+            if winerror == 32:
+                _log.debug("临时文件仍被占用，跳过删除: %s", path)
+            else:
+                _log.debug("无法删除临时文件 %s: %s", path, exc)
 
     def _stop_ffmpeg(self) -> None:
         proc = self._ffmpeg_proc
